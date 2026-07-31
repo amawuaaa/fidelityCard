@@ -3,6 +3,10 @@ import { Coffee, Nfc, Smile, Trophy } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
 import { BRAND } from "./config/brand.js";
 import {
+  buildCustomerQrValue,
+  getActiveCafeSlug,
+} from "./config/cafeContext.js";
+import {
   createNfcRequest,
   ensureCustomerSession,
   startNewCard,
@@ -15,6 +19,7 @@ export default function LoyaltyCard() {
   const [userSession, setUserSession] = useState(null);
   const [customerId, setCustomerId] = useState(null);
   const [cafeId, setCafeId] = useState(null);
+  const [cafeSlug, setCafeSlug] = useState(getActiveCafeSlug());
   const [cafeName, setCafeName] = useState(BRAND.cafeName);
   const [cafesComprados, setCafesComprados] = useState(0);
   const [stampsRequired, setStampsRequired] = useState(BRAND.stampsRequired);
@@ -24,25 +29,31 @@ export default function LoyaltyCard() {
   const [error, setError] = useState(null);
   const [showComplete, setShowComplete] = useState(false);
   const [startingNew, setStartingNew] = useState(false);
+  const [qrValue, setQrValue] = useState("");
   const unsubRequestRef = useRef(null);
   const prevStampsRef = useRef(0);
 
   useEffect(() => {
     let cancelled = false;
     let unsubCard = () => {};
+    const slug = getActiveCafeSlug();
 
     (async () => {
       try {
-        const session = await ensureCustomerSession();
+        const session = await ensureCustomerSession(slug);
         if (cancelled) return;
 
         setUserSession(session.publicId);
         setCustomerId(session.customerId);
         setCafeId(session.cafeId);
+        setCafeSlug(session.cafeSlug || slug);
         setCafeName(session.cafeName);
         setCafesComprados(session.stampsCount);
         setStampsRequired(session.stampsRequired);
         setCardsCompleted(session.cardsCompleted ?? 0);
+        setQrValue(
+          buildCustomerQrValue(session.publicId, session.cafeSlug || slug),
+        );
         prevStampsRef.current = session.stampsCount;
 
         if (session.stampsCount >= session.stampsRequired) {
@@ -58,10 +69,7 @@ export default function LoyaltyCard() {
             if (typeof card.cards_completed === "number") {
               setCardsCompleted(card.cards_completed);
             }
-            if (
-              next >= required &&
-              prevStampsRef.current < required
-            ) {
+            if (next >= required && prevStampsRef.current < required) {
               setShowComplete(true);
             }
             prevStampsRef.current = next;
@@ -69,7 +77,9 @@ export default function LoyaltyCard() {
         );
       } catch (err) {
         console.error(err);
-        if (!cancelled) setError("No se pudo cargar tu tarjeta. Inténtalo de nuevo.");
+        if (!cancelled) {
+          setError("No se pudo cargar tu tarjeta. Inténtalo de nuevo.");
+        }
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -103,10 +113,7 @@ export default function LoyaltyCard() {
 
       if (unsubRequestRef.current) unsubRequestRef.current();
       unsubRequestRef.current = subscribeNfcRequest(request.id, (updated) => {
-        if (updated.status === "aprobado") {
-          setEsperandoBarista(false);
-        }
-        if (updated.status === "rechazado") {
+        if (updated.status === "aprobado" || updated.status === "rechazado") {
           setEsperandoBarista(false);
         }
       });
@@ -122,7 +129,7 @@ export default function LoyaltyCard() {
     setStartingNew(true);
     setError(null);
     try {
-      const result = await startNewCard(userSession);
+      const result = await startNewCard(userSession, cafeSlug);
       setCafesComprados(result.stamps_count ?? 0);
       if (typeof result.cards_completed === "number") {
         setCardsCompleted(result.cards_completed);
@@ -145,7 +152,7 @@ export default function LoyaltyCard() {
       <div className="mx-auto flex min-h-dvh w-full max-w-md flex-col px-5 pb-8 pt-6">
         <div className="mb-4 flex items-center justify-center">
           <span className="rounded-full bg-[#178e3c]/10 px-3 py-1 text-[11px] font-extrabold uppercase tracking-wider text-[#178e3c]">
-            Demo · {BRAND.productName}
+            {BRAND.productName}
           </span>
         </div>
 
@@ -187,9 +194,7 @@ export default function LoyaltyCard() {
               {loading ? "…" : `${cafesComprados} / ${stampsRequired} cafés`}
             </p>
             <span className="rounded-full bg-[#178e3c]/10 px-3 py-1 text-xs font-bold text-[#178e3c]">
-              {cartonCompleto
-                ? "¡Gratis listo!"
-                : `${restantes} para gratis`}
+              {cartonCompleto ? "¡Gratis listo!" : `${restantes} para gratis`}
             </span>
           </div>
 
@@ -207,11 +212,6 @@ export default function LoyaltyCard() {
                       : "bg-gray-100",
                     cartonCompleto && comprado ? "animate-pulse" : "",
                   ].join(" ")}
-                  aria-label={
-                    comprado
-                      ? `Café ${index + 1} registrado`
-                      : `Espacio ${index + 1} vacío`
-                  }
                 >
                   <Coffee
                     className={
@@ -243,9 +243,9 @@ export default function LoyaltyCard() {
 
         <section className="mt-8 flex flex-col items-center">
           <div className="flex w-full flex-col items-center rounded-3xl bg-white p-5 shadow-sm">
-            {userSession ? (
+            {qrValue ? (
               <QRCodeSVG
-                value={userSession}
+                value={qrValue}
                 size={220}
                 level="H"
                 includeMargin
@@ -257,7 +257,7 @@ export default function LoyaltyCard() {
               <div className="size-40 animate-pulse rounded-xl bg-stone-100" />
             )}
             <p className="mt-3 text-xs font-bold text-gray-400">
-              Código escaneable · {userSession}
+              {userSession} · {cafeSlug}
             </p>
           </div>
 

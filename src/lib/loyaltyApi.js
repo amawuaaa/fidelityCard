@@ -1,4 +1,5 @@
 import { BRAND } from "../config/brand.js";
+import { getActiveCafeSlug, setActiveCafeSlug } from "../config/cafeContext.js";
 import { isSupabaseConfigured, supabase } from "./supabase.js";
 
 function generatePublicId() {
@@ -15,17 +16,19 @@ function getOrCreateLocalPublicId() {
 }
 
 /**
- * Obtiene (o crea) el cliente + su tarjeta de fidelidad para el café demo.
+ * Obtiene (o crea) el cliente + su tarjeta de fidelidad para un café.
  * Sin Supabase: solo usa localStorage y sellos mock.
  */
-export async function ensureCustomerSession() {
+export async function ensureCustomerSession(cafeSlug = getActiveCafeSlug()) {
   const publicId = getOrCreateLocalPublicId();
+  setActiveCafeSlug(cafeSlug);
 
   if (!isSupabaseConfigured) {
     return {
       publicId,
       customerId: null,
       cafeId: null,
+      cafeSlug,
       stampsCount: 4,
       stampsRequired: BRAND.stampsRequired,
       cardsCompleted: 0,
@@ -34,14 +37,29 @@ export async function ensureCustomerSession() {
     };
   }
 
-  // 1) Café demo (por slug)
-  const { data: cafe, error: cafeError } = await supabase
-    .from("cafes")
-    .select("id, name, stamps_required")
-    .eq("slug", BRAND.cafeSlug)
-    .single();
+  const { data: cafeJson, error: cafeRpcError } = await supabase.rpc(
+    "get_cafe_by_slug",
+    { p_slug: cafeSlug },
+  );
 
-  if (cafeError) throw cafeError;
+  let cafe;
+  if (cafeRpcError) {
+    // Fallback si aún no está el RPC multi_cafe
+    const { data, error } = await supabase
+      .from("cafes")
+      .select("id, name, slug, stamps_required")
+      .eq("slug", cafeSlug)
+      .single();
+    if (error) throw error;
+    cafe = data;
+  } else {
+    cafe = {
+      id: cafeJson.id,
+      name: cafeJson.name,
+      slug: cafeJson.slug,
+      stamps_required: cafeJson.stamps_required,
+    };
+  }
 
   // 2) Cliente por public_id
   let { data: customer } = await supabase
@@ -89,12 +107,60 @@ export async function ensureCustomerSession() {
     publicId: customer.public_id,
     customerId: customer.id,
     cafeId: cafe.id,
+    cafeSlug: cafe.slug || cafeSlug,
     stampsCount: card.stamps_count,
     stampsRequired: cafe.stamps_required ?? BRAND.stampsRequired,
     cardsCompleted: card.cards_completed ?? 0,
     cafeName: cafe.name,
     mode: "supabase",
   };
+}
+
+/** Café + rol del barista autenticado. */
+export async function fetchMyCafe() {
+  if (!isSupabaseConfigured) {
+    return {
+      cafeId: null,
+      cafeName: BRAND.cafeName,
+      cafeSlug: BRAND.cafeSlug,
+      stampsRequired: BRAND.stampsRequired,
+      role: "owner",
+      mode: "local",
+    };
+  }
+
+  const { data, error } = await supabase.rpc("get_my_cafe");
+  if (error) throw error;
+
+  setActiveCafeSlug(data.cafe_slug);
+
+  return {
+    cafeId: data.cafe_id,
+    cafeName: data.cafe_name,
+    cafeSlug: data.cafe_slug,
+    stampsRequired: data.stamps_required,
+    brandColor: data.brand_color,
+    role: data.role,
+    mode: "supabase",
+  };
+}
+
+/** Métricas del café del staff logueado. */
+export async function fetchCafeMetrics() {
+  if (!isSupabaseConfigured) {
+    return {
+      role: "owner",
+      stamps_today: 12,
+      cards_completed_total: 4,
+      active_customers: 18,
+      pending_nfc: 2,
+      mode: "local",
+    };
+  }
+
+  const { data, error } = await supabase.rpc("get_cafe_metrics");
+  if (error) throw error;
+  return { ...data, mode: "supabase" };
 }
 
 /** Crea una petición NFC pendiente (cliente → barista). */
@@ -179,8 +245,10 @@ function formatRelativeTime(isoDate) {
   return `Hace ${hours} h`;
 }
 
-/** Lista peticiones NFC pendientes del café demo. */
-export async function fetchPendingNfcRequests(cafeSlug = BRAND.cafeSlug) {
+/** Lista peticiones NFC pendientes del café del staff (o slug indicado). */
+export async function fetchPendingNfcRequests(cafeSlug) {
+  const slug = cafeSlug || getActiveCafeSlug();
+
   if (!isSupabaseConfigured) {
     return {
       requests: [
@@ -189,22 +257,37 @@ export async function fetchPendingNfcRequests(cafeSlug = BRAND.cafeSlug) {
       ],
       cafeId: null,
       cafeName: BRAND.cafeName,
+      cafeSlug: slug,
       mode: "local",
     };
   }
 
-  const { data: cafe, error: cafeError } = await supabase
-    .from("cafes")
-    .select("id, name")
-    .eq("slug", cafeSlug)
-    .single();
+  // Preferir café del barista logueado
+  let cafeId;
+  let cafeName;
+  let resolvedSlug = slug;
 
-  if (cafeError) throw cafeError;
+  try {
+    const mine = await fetchMyCafe();
+    cafeId = mine.cafeId;
+    cafeName = mine.cafeName;
+    resolvedSlug = mine.cafeSlug;
+  } catch {
+    const { data: cafe, error: cafeError } = await supabase
+      .from("cafes")
+      .select("id, name, slug")
+      .eq("slug", slug)
+      .single();
+    if (cafeError) throw cafeError;
+    cafeId = cafe.id;
+    cafeName = cafe.name;
+    resolvedSlug = cafe.slug;
+  }
 
   const { data, error } = await supabase
     .from("nfc_requests")
     .select("id, public_id, status, created_at")
-    .eq("cafe_id", cafe.id)
+    .eq("cafe_id", cafeId)
     .eq("status", "esperando")
     .order("created_at", { ascending: true });
 
@@ -218,8 +301,9 @@ export async function fetchPendingNfcRequests(cafeSlug = BRAND.cafeSlug) {
       tiempo: formatRelativeTime(row.created_at),
       createdAt: row.created_at,
     })),
-    cafeId: cafe.id,
-    cafeName: cafe.name,
+    cafeId,
+    cafeName,
+    cafeSlug: resolvedSlug,
     mode: "supabase",
   };
 }
@@ -317,7 +401,10 @@ export function parseCustomerPublicId(raw) {
 
   try {
     const url = new URL(text);
-    const fromQuery = url.searchParams.get("id") || url.searchParams.get("user");
+    const fromQuery =
+      url.searchParams.get("u") ||
+      url.searchParams.get("user") ||
+      url.searchParams.get("id");
     if (fromQuery) return parseCustomerPublicId(fromQuery);
     const pathMatch = url.pathname.match(/(usr_\d+)/i);
     if (pathMatch) return pathMatch[1];
@@ -329,8 +416,11 @@ export function parseCustomerPublicId(raw) {
   return null;
 }
 
-/** Busca un cliente y su tarjeta en el café demo. */
-export async function findCustomerByPublicId(publicId, cafeSlug = BRAND.cafeSlug) {
+/** Busca un cliente y su tarjeta en un café. */
+export async function findCustomerByPublicId(
+  publicId,
+  cafeSlug = getActiveCafeSlug(),
+) {
   const cleanId = parseCustomerPublicId(publicId);
   if (!cleanId) {
     throw new Error("ID de cliente no válido. Usa el formato usr_12345.");
@@ -347,10 +437,19 @@ export async function findCustomerByPublicId(publicId, cafeSlug = BRAND.cafeSlug
     };
   }
 
+  // Si hay sesión barista, usar su café
+  let slug = cafeSlug;
+  try {
+    const mine = await fetchMyCafe();
+    slug = mine.cafeSlug;
+  } catch {
+    // keep slug
+  }
+
   const { data: cafe, error: cafeError } = await supabase
     .from("cafes")
     .select("id, name, stamps_required")
-    .eq("slug", cafeSlug)
+    .eq("slug", slug)
     .single();
 
   if (cafeError) throw cafeError;
@@ -387,9 +486,12 @@ export async function findCustomerByPublicId(publicId, cafeSlug = BRAND.cafeSlug
 
 /**
  * Añade +1 sello directo (flujo QR / búsqueda manual).
- * Usa la RPC add_stamp_by_public_id en Supabase.
+ * El café lo determina el barista autenticado en el servidor.
  */
-export async function addStampByPublicId(publicId, cafeSlug = BRAND.cafeSlug) {
+export async function addStampByPublicId(
+  publicId,
+  cafeSlug = getActiveCafeSlug(),
+) {
   const cleanId = parseCustomerPublicId(publicId);
   if (!cleanId) {
     throw new Error("ID de cliente no válido.");
@@ -415,7 +517,10 @@ export async function addStampByPublicId(publicId, cafeSlug = BRAND.cafeSlug) {
 }
 
 /** Reinicia sellos a 0 tras completar un cartón (mantiene cards_completed). */
-export async function startNewCard(publicId, cafeSlug = BRAND.cafeSlug) {
+export async function startNewCard(
+  publicId,
+  cafeSlug = getActiveCafeSlug(),
+) {
   const cleanId = parseCustomerPublicId(publicId);
   if (!cleanId) {
     throw new Error("ID de cliente no válido.");

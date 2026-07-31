@@ -10,6 +10,8 @@ import {
 import {
   addStampByPublicId,
   approveNfcRequest,
+  fetchCafeMetrics,
+  fetchMyCafe,
   fetchPendingNfcRequests,
   fetchTodayApprovals,
   findCustomerByPublicId,
@@ -22,6 +24,7 @@ import QrScannerModal from "./components/QrScannerModal.jsx";
 import ManualSearchModal from "./components/ManualSearchModal.jsx";
 import CustomerResultCard from "./components/CustomerResultCard.jsx";
 import AdminLogin from "./components/AdminLogin.jsx";
+import CafeMetrics from "./components/CafeMetrics.jsx";
 
 /**
  * Panel de Administrador (Barista) — Demo multi-cafetería
@@ -80,6 +83,9 @@ function AdminPanelInner({ onLogout }) {
   const [peticionesNfc, setPeticionesNfc] = useState([]);
   const [cafeId, setCafeId] = useState(null);
   const [cafeName, setCafeName] = useState(BRAND.cafeName);
+  const [cafeSlug, setCafeSlug] = useState(BRAND.cafeSlug);
+  const [staffRole, setStaffRole] = useState("barista");
+  const [metrics, setMetrics] = useState(null);
   const [mensajeExito, setMensajeExito] = useState(null);
   const [historialHoy, setHistorialHoy] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -103,22 +109,35 @@ function AdminPanelInner({ onLogout }) {
 
   const cargarBandeja = useCallback(async () => {
     try {
-      const { requests, cafeId: id, cafeName: name } =
-        await fetchPendingNfcRequests();
-      setPeticionesNfc(requests);
-      setCafeId(id);
-      setCafeName(name);
+      const mine = await fetchMyCafe();
+      setCafeId(mine.cafeId);
+      setCafeName(mine.cafeName);
+      setCafeSlug(mine.cafeSlug);
+      setStaffRole(mine.role || "barista");
 
-      if (id) {
-        const historial = await fetchTodayApprovals(id);
+      const { requests } = await fetchPendingNfcRequests(mine.cafeSlug);
+      setPeticionesNfc(requests);
+
+      if (mine.cafeId) {
+        const historial = await fetchTodayApprovals(mine.cafeId);
         setHistorialHoy(historial);
-      } else {
-        setHistorialHoy(["usr_112", "usr_445"]);
       }
+
+      try {
+        const m = await fetchCafeMetrics();
+        setMetrics(m);
+      } catch {
+        setMetrics(null);
+      }
+
       setError(null);
     } catch (err) {
       console.error(err);
-      setError("No se pudo cargar la bandeja NFC.");
+      setError(
+        err.message?.includes("vinculado") || err.message?.includes("link_staff")
+          ? err.message
+          : "No se pudo cargar el panel. ¿Está tu usuario vinculado a un café?",
+      );
     } finally {
       setLoading(false);
     }
@@ -386,6 +405,10 @@ function AdminPanelInner({ onLogout }) {
           <h1 className="text-base font-bold tracking-wide sm:text-lg">
             {cafeName} — Panel de Control
           </h1>
+          <p className="text-[10px] font-semibold text-white/40">
+            /{cafeSlug}
+            {staffRole === "owner" ? " · owner" : ""}
+          </p>
         </div>
 
         <div className="flex shrink-0 items-center gap-3">
@@ -424,6 +447,8 @@ function AdminPanelInner({ onLogout }) {
             {error}
           </div>
         )}
+
+        <CafeMetrics metrics={metrics} role={staffRole} />
 
         <section className="mb-8 space-y-3">
           <button

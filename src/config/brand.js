@@ -16,3 +16,8 @@ export const BRAND = {
   storageKey: "stamp_customer_id",
   isDemo: true,
 };
+
+// Ejemplos multi-café:
+//   Cliente A → https://tu-app.vercel.app/?cafe=cafe-demo
+//   Cliente B → https://tu-app.vercel.app/?cafe=bean-co
+//   Staff     → https://tu-app.vercel.app/#admin
