@@ -266,17 +266,15 @@ export async function approveNfcRequest(requestId) {
   return { ...data, mode: "supabase" };
 }
 
-/** Rechaza una petición NFC (sin sumar sello). */
+/** Rechaza una petición NFC (sin sumar sello). Solo barista autenticado. */
 export async function rejectNfcRequest(requestId) {
   if (!isSupabaseConfigured) {
     return { mode: "local" };
   }
 
-  const { error } = await supabase
-    .from("nfc_requests")
-    .update({ status: "rechazado", resolved_at: new Date().toISOString() })
-    .eq("id", requestId)
-    .eq("status", "esperando");
+  const { error } = await supabase.rpc("reject_nfc_stamp", {
+    p_request_id: requestId,
+  });
 
   if (error) throw error;
   return { mode: "supabase" };

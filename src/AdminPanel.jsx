@@ -1,7 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Camera, Check, Search, X } from "lucide-react";
+import { Camera, Check, LogOut, Search, X } from "lucide-react";
 import { BRAND } from "./config/brand.js";
 import { isSupabaseConfigured } from "./lib/supabase.js";
+import {
+  getAdminSession,
+  logoutAdmin,
+  onAdminAuthChange,
+} from "./lib/adminAuth.js";
 import {
   addStampByPublicId,
   approveNfcRequest,
@@ -16,12 +21,62 @@ import {
 import QrScannerModal from "./components/QrScannerModal.jsx";
 import ManualSearchModal from "./components/ManualSearchModal.jsx";
 import CustomerResultCard from "./components/CustomerResultCard.jsx";
+import AdminLogin from "./components/AdminLogin.jsx";
 
 /**
  * Panel de Administrador (Barista) — Demo multi-cafetería
- * Vista pensada para tablet/móvil: botones anchos y bandeja NFC en vivo.
+ * Protegido: login Supabase Auth (o PIN en modo local).
  */
 export default function AdminPanel() {
+  const [authReady, setAuthReady] = useState(false);
+  const [session, setSession] = useState(null);
+
+  useEffect(() => {
+    let active = true;
+
+    getAdminSession().then((s) => {
+      if (active) {
+        setSession(s);
+        setAuthReady(true);
+      }
+    });
+
+    const unsub = onAdminAuthChange((s) => {
+      if (active) setSession(s);
+    });
+
+    return () => {
+      active = false;
+      unsub();
+    };
+  }, []);
+
+  if (!authReady) {
+    return (
+      <div className="flex min-h-dvh items-center justify-center bg-stone-100 text-sm font-semibold text-gray-400">
+        Comprobando acceso…
+      </div>
+    );
+  }
+
+  if (!session) {
+    return (
+      <AdminLogin
+        onSuccess={async () => {
+          const s = await getAdminSession();
+          setSession(s);
+        }}
+      />
+    );
+  }
+
+  return <AdminPanelInner onLogout={async () => {
+    await logoutAdmin();
+    setSession(null);
+  }} />;
+}
+
+function AdminPanelInner({ onLogout }) {
   const [peticionesNfc, setPeticionesNfc] = useState([]);
   const [cafeId, setCafeId] = useState(null);
   const [cafeName, setCafeName] = useState(BRAND.cafeName);
@@ -213,12 +268,18 @@ export default function AdminPanel() {
       console.error(err);
       const msg = err?.message || "";
       if (
+        msg.includes("No autorizado") ||
+        msg.includes("JWT") ||
+        msg.includes("permission")
+      ) {
+        setError("Sesión expirada o sin permiso. Cierra sesión y vuelve a entrar.");
+      } else if (
         msg.includes("add_stamp_by_public_id") ||
         msg.includes("function") ||
         msg.includes("card_complete")
       ) {
         setError(
-          "Falta ejecutar supabase/fix_card_sync.sql en el SQL Editor de Supabase.",
+          "Falta ejecutar supabase/secure_admin.sql (o fix_card_sync.sql) en Supabase.",
         );
       } else {
         setError(msg || "No se pudo añadir el punto.");
@@ -320,19 +381,30 @@ export default function AdminPanel() {
       <header className="flex items-center justify-between gap-3 bg-gray-900 px-5 py-4 text-white">
         <div>
           <p className="text-[10px] font-bold uppercase tracking-wider text-white/50">
-            {BRAND.productName} Demo · Barista
+            {BRAND.productName} · Barista
           </p>
           <h1 className="text-base font-bold tracking-wide sm:text-lg">
             {cafeName} — Panel de Control
           </h1>
         </div>
 
-        <div className="flex shrink-0 items-center gap-2 text-xs font-semibold text-[#178e3c] sm:text-sm">
-          <span
-            className="size-2.5 animate-pulse rounded-full bg-[#178e3c] shadow-[0_0_8px_rgba(23,142,60,0.8)]"
-            aria-hidden
-          />
-          {isSupabaseConfigured ? "Conectado a Supabase" : "Modo local"}
+        <div className="flex shrink-0 items-center gap-3">
+          <div className="flex items-center gap-2 text-xs font-semibold text-[#178e3c] sm:text-sm">
+            <span
+              className="size-2.5 animate-pulse rounded-full bg-[#178e3c] shadow-[0_0_8px_rgba(23,142,60,0.8)]"
+              aria-hidden
+            />
+            {isSupabaseConfigured ? "Sesión activa" : "Modo local"}
+          </div>
+          <button
+            type="button"
+            onClick={onLogout}
+            className="rounded-full bg-white/10 p-2 text-white hover:bg-white/20"
+            aria-label="Cerrar sesión"
+            title="Cerrar sesión"
+          >
+            <LogOut className="size-4" strokeWidth={2.5} />
+          </button>
         </div>
       </header>
 

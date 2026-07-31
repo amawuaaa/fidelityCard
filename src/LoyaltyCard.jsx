@@ -307,9 +307,9 @@ export default function LoyaltyCard() {
 
         <a
           href="#admin"
-          className="mt-auto pt-8 text-center text-xs font-semibold text-gray-400 underline-offset-2 hover:text-[#178e3c] hover:underline"
+          className="mt-auto pt-8 text-center text-[10px] font-semibold tracking-wide text-stone-300"
         >
-          Ir al Panel de Barista
+          Staff
         </a>
       </div>
 
