@@ -299,3 +299,107 @@ export async function fetchTodayApprovals(cafeId) {
   if (error) throw error;
   return (data ?? []).map((row) => row.public_id);
 }
+
+/**
+ * Extrae un public_id limpio desde texto escaneado o pegado.
+ * Acepta: "usr_12345", "stamp:usr_12345", URLs con ?id=, etc.
+ */
+export function parseCustomerPublicId(raw) {
+  if (!raw) return null;
+  const text = String(raw).trim();
+
+  const direct = text.match(/\b(usr_\d+)\b/i);
+  if (direct) return direct[1];
+
+  try {
+    const url = new URL(text);
+    const fromQuery = url.searchParams.get("id") || url.searchParams.get("user");
+    if (fromQuery) return parseCustomerPublicId(fromQuery);
+  } catch {
+    // no es URL
+  }
+
+  if (/^usr_/i.test(text)) return text;
+  return null;
+}
+
+/** Busca un cliente y su tarjeta en el café demo. */
+export async function findCustomerByPublicId(publicId, cafeSlug = BRAND.cafeSlug) {
+  const cleanId = parseCustomerPublicId(publicId);
+  if (!cleanId) {
+    throw new Error("ID de cliente no válido. Usa el formato usr_12345.");
+  }
+
+  if (!isSupabaseConfigured) {
+    return {
+      publicId: cleanId,
+      stampsCount: 3,
+      stampsRequired: BRAND.stampsRequired,
+      cafeName: BRAND.cafeName,
+      mode: "local",
+    };
+  }
+
+  const { data: cafe, error: cafeError } = await supabase
+    .from("cafes")
+    .select("id, name, stamps_required")
+    .eq("slug", cafeSlug)
+    .single();
+
+  if (cafeError) throw cafeError;
+
+  const { data: customer, error: customerError } = await supabase
+    .from("customers")
+    .select("id, public_id")
+    .eq("public_id", cleanId)
+    .maybeSingle();
+
+  if (customerError) throw customerError;
+  if (!customer) {
+    throw new Error(`No existe el cliente ${cleanId}.`);
+  }
+
+  const { data: card } = await supabase
+    .from("loyalty_cards")
+    .select("stamps_count")
+    .eq("cafe_id", cafe.id)
+    .eq("customer_id", customer.id)
+    .maybeSingle();
+
+  return {
+    publicId: customer.public_id,
+    customerId: customer.id,
+    cafeId: cafe.id,
+    stampsCount: card?.stamps_count ?? 0,
+    stampsRequired: cafe.stamps_required ?? BRAND.stampsRequired,
+    cafeName: cafe.name,
+    mode: "supabase",
+  };
+}
+
+/**
+ * Añade +1 sello directo (flujo QR / búsqueda manual).
+ * Usa la RPC add_stamp_by_public_id en Supabase.
+ */
+export async function addStampByPublicId(publicId, cafeSlug = BRAND.cafeSlug) {
+  const cleanId = parseCustomerPublicId(publicId);
+  if (!cleanId) {
+    throw new Error("ID de cliente no válido.");
+  }
+
+  if (!isSupabaseConfigured) {
+    return {
+      public_id: cleanId,
+      stamps_count: null,
+      mode: "local",
+    };
+  }
+
+  const { data, error } = await supabase.rpc("add_stamp_by_public_id", {
+    p_cafe_slug: cafeSlug,
+    p_public_id: cleanId,
+  });
+
+  if (error) throw error;
+  return { ...data, mode: "supabase" };
+}

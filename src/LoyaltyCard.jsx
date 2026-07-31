@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
-import { Coffee, Nfc, QrCode, Smile } from "lucide-react";
+import { Coffee, Nfc, Smile } from "lucide-react";
+import { QRCodeSVG } from "qrcode.react";
 import { BRAND } from "./config/brand.js";
 import { isSupabaseConfigured } from "./lib/supabase.js";
 import {
@@ -182,12 +183,20 @@ export default function LoyaltyCard() {
         </section>
 
         <section className="mt-8 flex flex-col items-center">
-          <div className="flex size-44 items-center justify-center rounded-3xl bg-white p-6 shadow-sm">
-            <QrCode
-              className="size-28 text-gray-900"
-              strokeWidth={1.75}
-              aria-label="Código QR de fidelidad"
-            />
+          <div className="flex size-44 items-center justify-center rounded-3xl bg-white p-4 shadow-sm">
+            {userSession ? (
+              <QRCodeSVG
+                value={userSession}
+                size={148}
+                level="M"
+                includeMargin={false}
+                bgColor="#ffffff"
+                fgColor="#111827"
+                title={`QR de ${userSession}`}
+              />
+            ) : (
+              <div className="size-28 animate-pulse rounded-xl bg-stone-100" />
+            )}
           </div>
 
           <p className="mt-4 text-center text-sm font-medium text-gray-500">

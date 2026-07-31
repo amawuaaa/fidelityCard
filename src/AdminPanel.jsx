@@ -3,12 +3,17 @@ import { Camera, Check, Search, X } from "lucide-react";
 import { BRAND } from "./config/brand.js";
 import { isSupabaseConfigured } from "./lib/supabase.js";
 import {
+  addStampByPublicId,
   approveNfcRequest,
   fetchPendingNfcRequests,
   fetchTodayApprovals,
+  findCustomerByPublicId,
   rejectNfcRequest,
   subscribePendingNfcRequests,
 } from "./lib/loyaltyApi.js";
+import QrScannerModal from "./components/QrScannerModal.jsx";
+import ManualSearchModal from "./components/ManualSearchModal.jsx";
+import CustomerResultCard from "./components/CustomerResultCard.jsx";
 
 /**
  * Panel de Administrador (Barista) — Demo multi-cafetería
@@ -23,7 +28,20 @@ export default function AdminPanel() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [busyId, setBusyId] = useState(null);
+
+  const [scannerOpen, setScannerOpen] = useState(false);
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [searching, setSearching] = useState(false);
+  const [clienteSeleccionado, setClienteSeleccionado] = useState(null);
+  const [addingStamp, setAddingStamp] = useState(false);
+
   const exitoTimerRef = useRef(null);
+
+  const mostrarExito = useCallback((texto) => {
+    setMensajeExito(texto);
+    if (exitoTimerRef.current) window.clearTimeout(exitoTimerRef.current);
+    exitoTimerRef.current = window.setTimeout(() => setMensajeExito(null), 2500);
+  }, []);
 
   const cargarBandeja = useCallback(async () => {
     try {
@@ -65,14 +83,73 @@ export default function AdminPanel() {
     };
   }, []);
 
+  const cargarCliente = useCallback(async (rawId) => {
+    setSearching(true);
+    setError(null);
+    try {
+      const customer = await findCustomerByPublicId(rawId);
+      setClienteSeleccionado(customer);
+      setScannerOpen(false);
+      setSearchOpen(false);
+    } catch (err) {
+      console.error(err);
+      setError(err.message || "No se pudo encontrar el cliente.");
+      setScannerOpen(false);
+    } finally {
+      setSearching(false);
+    }
+  }, []);
+
+  const handleQrScan = useCallback(
+    (decodedText) => {
+      cargarCliente(decodedText);
+    },
+    [cargarCliente],
+  );
+
+  const handleAddStamp = async () => {
+    if (!clienteSeleccionado || addingStamp) return;
+    setAddingStamp(true);
+    setError(null);
+    try {
+      const result = await addStampByPublicId(clienteSeleccionado.publicId);
+      const nuevoCount =
+        typeof result.stamps_count === "number"
+          ? result.stamps_count
+          : (clienteSeleccionado.stampsCount + 1) %
+            clienteSeleccionado.stampsRequired;
+
+      setClienteSeleccionado((prev) =>
+        prev
+          ? {
+              ...prev,
+              stampsCount: nuevoCount,
+            }
+          : prev,
+      );
+      setHistorialHoy((prev) =>
+        [clienteSeleccionado.publicId, ...prev].slice(0, 8),
+      );
+      mostrarExito(`Punto añadido a ${clienteSeleccionado.publicId}`);
+      if (isSupabaseConfigured) await cargarBandeja();
+    } catch (err) {
+      console.error(err);
+      const msg = err?.message || "";
+      if (msg.includes("add_stamp_by_public_id") || msg.includes("function")) {
+        setError(
+          "Falta ejecutar supabase/add_stamp_rpc.sql en el SQL Editor de Supabase.",
+        );
+      } else {
+        setError(msg || "No se pudo añadir el punto.");
+      }
+    } finally {
+      setAddingStamp(false);
+    }
+  };
+
   /**
    * aprobarPunto(id)
-   * Llama a la RPC approve_nfc_stamp en Supabase, que:
-   * 1) Bloquea la fila de nfc_requests
-   * 2) Suma +1 sello en loyalty_cards (o reinicia al completar el ciclo)
-   * 3) Marca la petición como 'aprobado'
-   * 4) Inserta un registro en stamp_events (historial)
-   * El cliente recibe el cambio por Realtime en loyalty_cards / nfc_requests.
+   * Llama a la RPC approve_nfc_stamp en Supabase.
    */
   const aprobarPunto = async (id) => {
     const peticion = peticionesNfc.find((p) => p.id === id);
@@ -83,15 +160,10 @@ export default function AdminPanel() {
       const result = await approveNfcRequest(id);
       const usuario = result?.public_id || peticion.usuario;
 
-      // Optimistic UI: quitar de la bandeja al instante
       setPeticionesNfc((prev) => prev.filter((p) => p.id !== id));
       setHistorialHoy((prev) => [usuario, ...prev].slice(0, 8));
+      mostrarExito(`Punto aprobado para ${usuario}`);
 
-      setMensajeExito(`Punto aprobado para ${usuario}`);
-      if (exitoTimerRef.current) window.clearTimeout(exitoTimerRef.current);
-      exitoTimerRef.current = window.setTimeout(() => setMensajeExito(null), 2500);
-
-      // En modo Supabase, Realtime refresca; en local ya actualizamos.
       if (isSupabaseConfigured) await cargarBandeja();
     } catch (err) {
       console.error(err);
@@ -157,7 +229,10 @@ export default function AdminPanel() {
         <section className="mb-8 space-y-3">
           <button
             type="button"
-            onClick={() => alert("Abriendo cámara...")}
+            onClick={() => {
+              setError(null);
+              setScannerOpen(true);
+            }}
             className="flex w-full items-center justify-center gap-3 rounded-3xl bg-[#178e3c] px-6 py-5 text-lg font-bold text-white shadow-sm transition active:scale-[0.99] hover:bg-[#136f2f]"
           >
             <Camera className="size-7" strokeWidth={2.5} aria-hidden />
@@ -166,13 +241,23 @@ export default function AdminPanel() {
 
           <button
             type="button"
-            onClick={() => alert("Buscar cliente por ID...")}
+            onClick={() => {
+              setError(null);
+              setSearchOpen(true);
+            }}
             className="flex w-full items-center justify-center gap-2 rounded-3xl bg-white px-6 py-4 text-base font-bold text-gray-900 shadow-sm ring-1 ring-stone-200 transition active:scale-[0.99] hover:bg-stone-50"
           >
             <Search className="size-5" strokeWidth={2.5} aria-hidden />
             Buscar Cliente Manualmente
           </button>
         </section>
+
+        <CustomerResultCard
+          customer={clienteSeleccionado}
+          busy={addingStamp}
+          onAddStamp={handleAddStamp}
+          onClose={() => setClienteSeleccionado(null)}
+        />
 
         <section>
           <div className="mb-4 flex flex-wrap items-end justify-between gap-2">
@@ -261,6 +346,19 @@ export default function AdminPanel() {
           </a>
         </footer>
       </main>
+
+      <QrScannerModal
+        open={scannerOpen}
+        onClose={() => setScannerOpen(false)}
+        onScan={handleQrScan}
+      />
+
+      <ManualSearchModal
+        open={searchOpen}
+        onClose={() => setSearchOpen(false)}
+        onSearch={cargarCliente}
+        searching={searching}
+      />
     </div>
   );
 }
