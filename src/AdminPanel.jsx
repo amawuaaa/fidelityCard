@@ -95,20 +95,36 @@ export default function AdminPanel() {
       setSearchOpen(false);
     } catch (err) {
       console.error(err);
+      // No cerramos el escáner si falló el parseo: el usuario puede reintentar
       setError(
-        `${err.message || "No se pudo encontrar el cliente."} (leído: "${String(rawId).slice(0, 40)}")`,
+        `${err.message || "No se pudo encontrar el cliente."} (leído: "${String(rawId).slice(0, 60)}")`,
       );
-      setScannerOpen(false);
+      setSearchOpen(false);
     } finally {
       setSearching(false);
     }
   }, []);
 
   const handleQrScan = useCallback(
-    (decodedText) => {
-      cargarCliente(decodedText);
+    async (decodedText) => {
+      setSearching(true);
+      setError(null);
+      try {
+        const customer = await findCustomerByPublicId(decodedText);
+        setClienteSeleccionado(customer);
+        setScannerOpen(false);
+        setSearchOpen(false);
+      } catch (err) {
+        console.error(err);
+        setError(
+          `${err.message || "No se pudo encontrar el cliente."} (leído: "${String(decodedText).slice(0, 60)}")`,
+        );
+        throw err;
+      } finally {
+        setSearching(false);
+      }
     },
-    [cargarCliente],
+    [],
   );
 
   const handleAddStamp = async () => {

@@ -1,24 +1,30 @@
 import { useEffect, useRef, useState } from "react";
-import { X } from "lucide-react";
-import { Html5Qrcode, Html5QrcodeSupportedFormats } from "html5-qrcode";
+import { Camera, ImagePlus, SwitchCamera, X } from "lucide-react";
+import jsQR from "jsqr";
 
 /**
- * Modal de escáner QR.
- * Prioriza BarcodeDetector nativo; si no está o falla, usa html5-qrcode
- * escaneando el frame completo (sin qrbox).
+ * Escáner QR casero con getUserMedia + jsQR.
+ * Más fiable que wrappers de cámara en muchos móviles.
+ * Incluye: cambiar cámara y subir/fotografiar el QR.
  */
 export default function QrScannerModal({ open, onClose, onScan }) {
+  const [status, setStatus] = useState("Abriendo cámara…");
   const [cameraError, setCameraError] = useState(null);
-  const [status, setStatus] = useState("Preparando cámara…");
   const [manualId, setManualId] = useState("");
-  const [engine, setEngine] = useState(null); // 'native' | 'html5'
+  const [facingMode, setFacingMode] = useState("environment");
+  const [frames, setFrames] = useState(0);
+
   const videoRef = useRef(null);
-  const html5RegionRef = useRef(null);
+  const canvasRef = useRef(null);
+  const streamRef = useRef(null);
+  const rafRef = useRef(0);
   const handledRef = useRef(false);
   const onScanRef = useRef(onScan);
-  const cleanupRef = useRef(() => {});
+  const facingRef = useRef(facingMode);
+  const fileRef = useRef(null);
 
   onScanRef.current = onScan;
+  facingRef.current = facingMode;
 
   useEffect(() => {
     if (!open) return undefined;
@@ -26,200 +32,188 @@ export default function QrScannerModal({ open, onClose, onScan }) {
     handledRef.current = false;
     setCameraError(null);
     setManualId("");
+    setFrames(0);
     setStatus("Abriendo cámara…");
-    setEngine(null);
 
     let cancelled = false;
 
-    const finishWithText = async (raw, stopFn) => {
+    const stopStream = () => {
+      cancelAnimationFrame(rafRef.current);
+      streamRef.current?.getTracks().forEach((t) => t.stop());
+      streamRef.current = null;
+      if (videoRef.current) videoRef.current.srcObject = null;
+    };
+
+    const emit = async (text) => {
       if (handledRef.current || cancelled) return;
       handledRef.current = true;
-      setStatus("¡Código detectado!");
+      setStatus("¡Código detectado! Buscando cliente…");
       try {
-        await stopFn?.();
+        await onScanRef.current?.(String(text).trim());
+        stopStream();
       } catch {
-        // ignore
+        // El padre no encontró cliente: seguimos escaneando
+        if (!cancelled) {
+          handledRef.current = false;
+          setStatus("QR leído pero no válido. Prueba de nuevo…");
+          rafRef.current = requestAnimationFrame(scanLoop);
+        }
       }
-      onScanRef.current?.(String(raw).trim());
     };
 
-    const startNativeDetector = async () => {
-      if (!("BarcodeDetector" in window)) return false;
+    const decodeCanvas = (canvas) => {
+      const ctx = canvas.getContext("2d", { willReadFrequently: true });
+      if (!ctx) return null;
+      const { width, height } = canvas;
+      if (!width || !height) return null;
 
-      let detector;
-      try {
-        detector = new window.BarcodeDetector({ formats: ["qr_code"] });
-      } catch {
-        return false;
-      }
-
-      // Muestra el <video> antes de pedir stream
-      setEngine("native");
-      await new Promise((r) => requestAnimationFrame(() => r()));
-
-      const stream = await navigator.mediaDevices.getUserMedia({
-        audio: false,
-        video: {
-          facingMode: { ideal: "environment" },
-          width: { ideal: 1280 },
-          height: { ideal: 720 },
-        },
+      const imageData = ctx.getImageData(0, 0, width, height);
+      const code = jsQR(imageData.data, width, height, {
+        inversionAttempts: "attemptBoth",
       });
+      return code?.data || null;
+    };
 
-      if (cancelled) {
-        stream.getTracks().forEach((t) => t.stop());
-        return true;
-      }
+    const scanLoop = () => {
+      if (cancelled || handledRef.current) return;
 
       const video = videoRef.current;
-      if (!video) {
-        stream.getTracks().forEach((t) => t.stop());
-        return false;
-      }
+      const canvas = canvasRef.current;
+      if (video && canvas && video.readyState >= 2) {
+        const vw = video.videoWidth;
+        const vh = video.videoHeight;
+        if (vw && vh) {
+          const maxW = 640;
+          const scale = Math.min(1, maxW / vw);
+          const w = Math.floor(vw * scale);
+          const h = Math.floor(vh * scale);
+          canvas.width = w;
+          canvas.height = h;
+          const ctx = canvas.getContext("2d", { willReadFrequently: true });
+          ctx.drawImage(video, 0, 0, w, h);
 
-      video.srcObject = stream;
-      await video.play();
-      setStatus("Apunta al QR…");
+          let data = decodeCanvas(canvas);
 
-      const canvas = document.createElement("canvas");
-      const ctx = canvas.getContext("2d", { willReadFrequently: true });
-      let rafId = 0;
-      let lastDetect = 0;
+          if (!data) {
+            const crop = Math.floor(Math.min(w, h) * 0.7);
+            const sx = Math.floor((w - crop) / 2);
+            const sy = Math.floor((h - crop) / 2);
+            const cropCanvas = document.createElement("canvas");
+            cropCanvas.width = crop;
+            cropCanvas.height = crop;
+            const cctx = cropCanvas.getContext("2d", {
+              willReadFrequently: true,
+            });
+            cctx.drawImage(canvas, sx, sy, crop, crop, 0, 0, crop, crop);
+            data = decodeCanvas(cropCanvas);
+          }
 
-      const stop = () => {
-        cancelAnimationFrame(rafId);
-        stream.getTracks().forEach((t) => t.stop());
-        if (video.srcObject) video.srcObject = null;
-      };
+          setFrames((n) => n + 1);
 
-      cleanupRef.current = stop;
-
-      const tick = async () => {
-        if (cancelled || handledRef.current) return;
-
-        const now = performance.now();
-        if (video.readyState >= 2 && ctx && now - lastDetect > 150) {
-          lastDetect = now;
-          const w = video.videoWidth;
-          const h = video.videoHeight;
-          if (w && h) {
-            canvas.width = w;
-            canvas.height = h;
-            ctx.drawImage(video, 0, 0, w, h);
-            try {
-              const codes = await detector.detect(canvas);
-              if (codes?.length) {
-                await finishWithText(codes[0].rawValue, stop);
-                return;
-              }
-            } catch {
-              // seguir
-            }
+          if (data) {
+            void emit(data);
+            return;
           }
         }
-
-        rafId = requestAnimationFrame(tick);
-      };
-
-      rafId = requestAnimationFrame(tick);
-      return true;
-    };
-
-    const startHtml5Fallback = async () => {
-      setEngine("html5");
-      await new Promise((r) => requestAnimationFrame(() => r()));
-      await new Promise((r) => setTimeout(r, 50));
-
-      const regionEl = html5RegionRef.current;
-      if (!regionEl) throw new Error("No hay contenedor para el escáner");
-
-      const regionId = "stamp-html5-qr-fallback";
-      regionEl.id = regionId;
-      regionEl.innerHTML = "";
-
-      const scanner = new Html5Qrcode(regionId, {
-        formatsToSupport: [Html5QrcodeSupportedFormats.QR_CODE],
-        verbose: false,
-      });
-
-      const stop = async () => {
-        try {
-          if (scanner.isScanning) await scanner.stop();
-          scanner.clear();
-        } catch {
-          // ignore
-        }
-      };
-
-      cleanupRef.current = stop;
-
-      const cameras = await Html5Qrcode.getCameras();
-      const backCam =
-        cameras.find((c) =>
-          /back|rear|environment|trasera|atras/i.test(c.label),
-        ) || cameras[cameras.length - 1];
-
-      // Frame completo, sin qrbox
-      const config = { fps: 15, disableFlip: false };
-
-      if (backCam?.id) {
-        await scanner.start(
-          backCam.id,
-          config,
-          (text) => finishWithText(text, stop),
-          () => {},
-        );
-      } else {
-        await scanner.start(
-          { facingMode: "environment" },
-          config,
-          (text) => finishWithText(text, stop),
-          () => {},
-        );
       }
 
-      setStatus("Apunta al QR…");
+      rafRef.current = requestAnimationFrame(scanLoop);
     };
 
-    (async () => {
+    const startCamera = async (facing) => {
+      stopStream();
+      setStatus("Abriendo cámara…");
+      setCameraError(null);
+
       try {
-        let ok = false;
-        try {
-          ok = await startNativeDetector();
-        } catch (nativeErr) {
-          console.warn("BarcodeDetector falló, usando fallback", nativeErr);
-          cleanupRef.current?.();
-          ok = false;
+        const stream = await navigator.mediaDevices.getUserMedia({
+          audio: false,
+          video: {
+            facingMode: { ideal: facing },
+            width: { ideal: 1280 },
+            height: { ideal: 720 },
+          },
+        });
+
+        if (cancelled) {
+          stream.getTracks().forEach((t) => t.stop());
+          return;
         }
 
-        if (cancelled) return;
+        streamRef.current = stream;
+        const video = videoRef.current;
+        if (!video) return;
 
-        if (!ok) {
-          await startHtml5Fallback();
-        }
+        video.srcObject = stream;
+        await video.play();
+        setStatus("Buscando QR… acerca el código");
+        rafRef.current = requestAnimationFrame(scanLoop);
       } catch (err) {
         console.error(err);
         if (!cancelled) {
           setCameraError(
-            "No se pudo usar la cámara. Escribe el ID abajo o prueba Chrome en Android.",
+            "No se pudo abrir la cámara. Usa “Foto del QR” o escribe el ID.",
           );
           setStatus("");
         }
       }
-    })();
+    };
+
+    startCamera(facingRef.current);
 
     return () => {
       cancelled = true;
-      cleanupRef.current?.();
-      cleanupRef.current = () => {};
+      stopStream();
     };
-  }, [open]);
+  }, [open, facingMode]);
+
+  const decodeImageFile = async (file) => {
+    if (!file) return;
+    setStatus("Leyendo imagen…");
+    setCameraError(null);
+
+    try {
+      const bitmap = await createImageBitmap(file);
+      const canvas = document.createElement("canvas");
+      const maxW = 1200;
+      const scale = Math.min(1, maxW / bitmap.width);
+      canvas.width = Math.floor(bitmap.width * scale);
+      canvas.height = Math.floor(bitmap.height * scale);
+      const ctx = canvas.getContext("2d", { willReadFrequently: true });
+      ctx.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+      const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+      const code = jsQR(imageData.data, canvas.width, canvas.height, {
+        inversionAttempts: "attemptBoth",
+      });
+
+      if (!code?.data) {
+        setCameraError(
+          "No se encontró un QR en la foto. Prueba más cerca, con buena luz y sin reflejos.",
+        );
+        setStatus("Buscando QR…");
+        return;
+      }
+
+      handledRef.current = true;
+      setStatus("¡Código detectado!");
+      try {
+        await onScanRef.current?.(code.data.trim());
+        streamRef.current?.getTracks().forEach((t) => t.stop());
+      } catch {
+        handledRef.current = false;
+        setStatus("QR leído pero no válido. Prueba otra foto…");
+      }
+    } catch (err) {
+      console.error(err);
+      setCameraError("No se pudo leer la imagen.");
+    }
+  };
 
   if (!open) return null;
 
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 p-3 sm:items-center sm:p-4">
-      <div className="flex max-h-[92dvh] w-full max-w-md flex-col overflow-hidden rounded-3xl bg-white shadow-xl">
+      <div className="flex max-h-[94dvh] w-full max-w-md flex-col overflow-hidden rounded-3xl bg-white shadow-xl">
         <div className="flex shrink-0 items-center justify-between border-b border-stone-100 px-5 py-4">
           <h3 className="text-lg font-bold text-gray-900">Escanear QR</h3>
           <button
@@ -234,8 +228,8 @@ export default function QrScannerModal({ open, onClose, onScan }) {
 
         <div className="space-y-3 overflow-y-auto p-4">
           <p className="text-sm text-gray-500">
-            Acerca el QR de la tarjeta (otro teléfono). Evita reflejos y mantén
-            el código dentro del recuadro.
+            Pon el QR del cliente delante de la cámara (otro móvil). Si no pilla,
+            usa <strong>Foto del QR</strong>.
           </p>
 
           <div className="relative overflow-hidden rounded-2xl bg-black">
@@ -244,32 +238,20 @@ export default function QrScannerModal({ open, onClose, onScan }) {
               muted
               playsInline
               autoPlay
-              className={[
-                "aspect-[3/4] w-full object-cover",
-                engine === "native" ? "block" : "hidden",
-              ].join(" ")}
+              className="aspect-[3/4] w-full object-cover"
             />
-
-            <div
-              ref={html5RegionRef}
-              className={[
-                "min-h-[360px] w-full [&_img]:hidden [&_video]:!relative [&_video]:!h-auto [&_video]:!w-full [&_video]:object-cover",
-                engine === "html5" ? "block" : "hidden",
-              ].join(" ")}
-            />
-
-            {!engine && (
-              <div className="flex aspect-[3/4] items-center justify-center text-sm text-white/70">
-                Preparando…
-              </div>
-            )}
+            <canvas ref={canvasRef} className="hidden" />
 
             <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
               <div className="size-56 rounded-2xl border-2 border-white/90" />
             </div>
+
+            <div className="absolute bottom-3 left-3 rounded-full bg-black/55 px-2.5 py-1 text-[10px] font-bold text-white">
+              frames: {frames}
+            </div>
           </div>
 
-          {status && !cameraError && (
+          {status && (
             <p className="text-center text-sm font-semibold text-[#178e3c]">
               {status}
             </p>
@@ -281,9 +263,43 @@ export default function QrScannerModal({ open, onClose, onScan }) {
             </p>
           )}
 
+          <div className="grid grid-cols-2 gap-2">
+            <button
+              type="button"
+              onClick={() =>
+                setFacingMode((f) =>
+                  f === "environment" ? "user" : "environment",
+                )
+              }
+              className="flex items-center justify-center gap-2 rounded-2xl bg-stone-100 py-3 text-sm font-bold text-gray-800"
+            >
+              <SwitchCamera className="size-4" strokeWidth={2.5} />
+              Cambiar cámara
+            </button>
+
+            <button
+              type="button"
+              onClick={() => fileRef.current?.click()}
+              className="flex items-center justify-center gap-2 rounded-2xl bg-[#178e3c] py-3 text-sm font-bold text-white"
+            >
+              <ImagePlus className="size-4" strokeWidth={2.5} />
+              Foto del QR
+            </button>
+          </div>
+
+          <input
+            ref={fileRef}
+            type="file"
+            accept="image/*"
+            capture="environment"
+            className="hidden"
+            onChange={(e) => decodeImageFile(e.target.files?.[0])}
+          />
+
           <div className="border-t border-stone-100 pt-3">
-            <p className="mb-2 text-xs font-bold uppercase tracking-wide text-gray-400">
-              Si no detecta, escribe el ID
+            <p className="mb-2 flex items-center gap-1.5 text-xs font-bold uppercase tracking-wide text-gray-400">
+              <Camera className="size-3.5" />
+              O escribe el ID
             </p>
             <form
               className="flex gap-2"
@@ -301,7 +317,7 @@ export default function QrScannerModal({ open, onClose, onScan }) {
               />
               <button
                 type="submit"
-                className="rounded-xl bg-[#178e3c] px-4 py-2 text-sm font-bold text-white"
+                className="rounded-xl bg-gray-900 px-4 py-2 text-sm font-bold text-white"
               >
                 Ir
               </button>

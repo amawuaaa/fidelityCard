@@ -257,20 +257,23 @@ export default function LoyaltyCard() {
         </section>
 
         <section className="mt-8 flex flex-col items-center">
-          <div className="flex size-52 items-center justify-center rounded-3xl bg-white p-3 shadow-sm">
+          <div className="flex w-full flex-col items-center rounded-3xl bg-white p-5 shadow-sm">
             {userSession ? (
               <QRCodeSVG
-                value={`stamp:${userSession}`}
-                size={184}
+                value={userSession}
+                size={220}
                 level="H"
                 includeMargin
                 bgColor="#ffffff"
-                fgColor="#111827"
+                fgColor="#000000"
                 title={`QR de ${userSession}`}
               />
             ) : (
-              <div className="size-36 animate-pulse rounded-xl bg-stone-100" />
+              <div className="size-40 animate-pulse rounded-xl bg-stone-100" />
             )}
+            <p className="mt-3 text-xs font-bold text-gray-400">
+              Código escaneable · {userSession}
+            </p>
           </div>
 
           <p className="mt-4 text-center text-sm font-medium text-gray-500">
