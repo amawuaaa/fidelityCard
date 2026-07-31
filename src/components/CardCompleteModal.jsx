@@ -1,11 +1,10 @@
 import { Coffee, PartyPopper, Sparkles } from "lucide-react";
 
 /**
- * Celebración al completar un cartón (6/6) + CTA para empezar uno nuevo.
+ * Celebración para el CLIENTE al completar su cartón (6/6).
  */
 export default function CardCompleteModal({
   open,
-  publicId,
   cardsCompleted,
   onStartNew,
   onClose,
@@ -28,17 +27,11 @@ export default function CardCompleteModal({
         </div>
 
         <h3 className="relative text-2xl font-extrabold text-gray-900">
-          ¡Cartón completado!
+          ¡Enhorabuena!
         </h3>
         <p className="relative mt-2 text-sm font-medium text-gray-500">
-          {publicId ? (
-            <>
-              <span className="font-bold text-gray-800">{publicId}</span> ganó un
-              café gratis.
-            </>
-          ) : (
-            "Ganaste un café gratis."
-          )}
+          Completaste tu cartón. Muestra esto al barista y{" "}
+          <span className="font-bold text-gray-800">disfruta tu café gratis</span>.
         </p>
 
         <div className="relative mt-5 inline-flex items-center gap-2 rounded-full bg-[#178e3c]/10 px-4 py-2 text-sm font-extrabold text-[#178e3c]">
@@ -48,7 +41,7 @@ export default function CardCompleteModal({
         </div>
 
         <p className="relative mt-5 text-sm text-gray-500">
-          ¿Quieres empezar un cartón nuevo ahora?
+          Cuando canjees el gratis, ¿empezamos un cartón nuevo?
         </p>
 
         <div className="relative mt-4 space-y-2">

@@ -15,7 +15,6 @@ import {
 import QrScannerModal from "./components/QrScannerModal.jsx";
 import ManualSearchModal from "./components/ManualSearchModal.jsx";
 import CustomerResultCard from "./components/CustomerResultCard.jsx";
-import CardCompleteModal from "./components/CardCompleteModal.jsx";
 
 /**
  * Panel de Administrador (Barista) — Demo multi-cafetería
@@ -36,7 +35,6 @@ export default function AdminPanel() {
   const [searching, setSearching] = useState(false);
   const [clienteSeleccionado, setClienteSeleccionado] = useState(null);
   const [addingStamp, setAddingStamp] = useState(false);
-  const [showComplete, setShowComplete] = useState(false);
   const [startingNew, setStartingNew] = useState(false);
 
   const exitoTimerRef = useRef(null);
@@ -95,9 +93,6 @@ export default function AdminPanel() {
       setClienteSeleccionado(customer);
       setScannerOpen(false);
       setSearchOpen(false);
-      if (customer.stampsCount >= customer.stampsRequired) {
-        setShowComplete(true);
-      }
     } catch (err) {
       console.error(err);
       setError(
@@ -145,8 +140,11 @@ export default function AdminPanel() {
       );
 
       if (result.card_completed || nuevoCount >= clienteSeleccionado.stampsRequired) {
-        setShowComplete(true);
-        mostrarExito(`¡Cartón completo para ${clienteSeleccionado.publicId}!`);
+        // La celebración grande va al móvil del cliente (Realtime).
+        // Aquí solo avisamos al barista de forma operativa.
+        mostrarExito(
+          `Cartón completo · ${clienteSeleccionado.publicId} — café gratis listo`,
+        );
       } else {
         mostrarExito(`Punto añadido a ${clienteSeleccionado.publicId}`);
       }
@@ -185,7 +183,6 @@ export default function AdminPanel() {
             }
           : prev,
       );
-      setShowComplete(false);
       mostrarExito(`Nuevo cartón para ${clienteSeleccionado.publicId}`);
     } catch (err) {
       console.error(err);
@@ -411,15 +408,6 @@ export default function AdminPanel() {
         onClose={() => setSearchOpen(false)}
         onSearch={cargarCliente}
         searching={searching}
-      />
-
-      <CardCompleteModal
-        open={showComplete}
-        publicId={clienteSeleccionado?.publicId}
-        cardsCompleted={clienteSeleccionado?.cardsCompleted ?? 0}
-        busy={startingNew}
-        onStartNew={handleStartNewCard}
-        onClose={() => setShowComplete(false)}
       />
     </div>
   );

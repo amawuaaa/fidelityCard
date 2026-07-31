@@ -312,7 +312,6 @@ export default function LoyaltyCard() {
 
       <CardCompleteModal
         open={showComplete}
-        publicId={userSession}
         cardsCompleted={cardsCompleted}
         busy={startingNew}
         onStartNew={handleStartNewCard}
