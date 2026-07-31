@@ -4,13 +4,14 @@
  * Cada café real vive en Supabase (nombre, color, sellos, tagline).
  * Ver DEMO_CAFES en theme.js y supabase/demo_cafes.sql
  *
+ * Producción: https://www.cuptrack.com
  * Cliente A → /?cafe=cafe-demo
  * Cliente B → /?cafe=bean-co
  * Cliente C → /?cafe=norte
  * Staff     → /#admin
  */
 export const BRAND = {
-  productName: "Stamp",
+  productName: "CupTrack",
   productTagline: "Fidelidad para cafeterías",
   cafeName: "Café Demo",
   cafeSlug: "cafe-demo",
