@@ -1,4 +1,4 @@
-import { Check, Coffee, Trophy, X } from "lucide-react";
+import { Check, Coffee, RefreshCw, Trophy, X } from "lucide-react";
 
 /**
  * Resultado de cliente encontrado (QR o búsqueda) con acción de añadir punto.
@@ -8,6 +8,7 @@ export default function CustomerResultCard({
   busy,
   onAddStamp,
   onStartNewCard,
+  onRefresh,
   onClose,
 }) {
   if (!customer) return null;
@@ -35,14 +36,28 @@ export default function CustomerResultCard({
               : ` · ${restantes} para gratis`}
           </p>
         </div>
-        <button
-          type="button"
-          onClick={onClose}
-          className="rounded-full bg-stone-100 p-2 text-gray-500 hover:bg-stone-200"
-          aria-label="Cerrar resultado"
-        >
-          <X className="size-4" strokeWidth={2.5} />
-        </button>
+        <div className="flex items-center gap-1">
+          {onRefresh && (
+            <button
+              type="button"
+              onClick={onRefresh}
+              disabled={busy}
+              className="rounded-full bg-stone-100 p-2 text-gray-500 hover:bg-stone-200 disabled:opacity-50"
+              aria-label="Actualizar cliente"
+              title="Actualizar"
+            >
+              <RefreshCw className="size-4" strokeWidth={2.5} />
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-full bg-stone-100 p-2 text-gray-500 hover:bg-stone-200"
+            aria-label="Cerrar resultado"
+          >
+            <X className="size-4" strokeWidth={2.5} />
+          </button>
+        </div>
       </div>
 
       <div className="mb-4 grid grid-cols-6 gap-2">
@@ -75,15 +90,29 @@ export default function CustomerResultCard({
       </div>
 
       {completo ? (
-        <button
-          type="button"
-          disabled={busy}
-          onClick={onStartNewCard}
-          className="flex w-full items-center justify-center gap-2 rounded-2xl bg-[#178e3c] py-4 text-base font-bold text-white shadow-sm transition hover:bg-[#136f2f] disabled:opacity-60"
-        >
-          <Check className="size-5" strokeWidth={2.5} />
-          {busy ? "Empezando…" : "Empezar cartón nuevo"}
-        </button>
+        <div className="space-y-2">
+          <p className="text-center text-xs font-medium text-gray-500">
+            Café gratis listo. Puedes canjear y abrir cartón nuevo, o al sumar el
+            siguiente café se abrirá solo.
+          </p>
+          <button
+            type="button"
+            disabled={busy}
+            onClick={onStartNewCard}
+            className="flex w-full items-center justify-center gap-2 rounded-2xl bg-white py-3 text-sm font-bold text-gray-900 shadow-sm ring-1 ring-stone-200 transition hover:bg-stone-50 disabled:opacity-60"
+          >
+            Solo empezar cartón nuevo (0/6)
+          </button>
+          <button
+            type="button"
+            disabled={busy}
+            onClick={onAddStamp}
+            className="flex w-full items-center justify-center gap-2 rounded-2xl bg-[#178e3c] py-4 text-base font-bold text-white shadow-sm transition hover:bg-[#136f2f] disabled:opacity-60"
+          >
+            <Check className="size-5" strokeWidth={2.5} />
+            {busy ? "Procesando…" : "Canjear gratis + 1 punto nuevo"}
+          </button>
+        </div>
       ) : (
         <button
           type="button"

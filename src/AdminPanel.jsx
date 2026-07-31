@@ -10,6 +10,7 @@ import {
   findCustomerByPublicId,
   rejectNfcRequest,
   startNewCard,
+  subscribeLoyaltyCard,
   subscribePendingNfcRequests,
 } from "./lib/loyaltyApi.js";
 import QrScannerModal from "./components/QrScannerModal.jsx";
@@ -85,6 +86,40 @@ export default function AdminPanel() {
     };
   }, []);
 
+  // Si el cliente empieza un cartón nuevo en su móvil, el admin lo ve al momento
+  useEffect(() => {
+    if (!clienteSeleccionado?.cafeId || !clienteSeleccionado?.customerId) {
+      return undefined;
+    }
+
+    return subscribeLoyaltyCard(
+      {
+        cafeId: clienteSeleccionado.cafeId,
+        customerId: clienteSeleccionado.customerId,
+      },
+      (card) => {
+        setClienteSeleccionado((prev) =>
+          prev
+            ? {
+                ...prev,
+                stampsCount: card.stamps_count,
+                cardsCompleted:
+                  typeof card.cards_completed === "number"
+                    ? card.cards_completed
+                    : prev.cardsCompleted,
+              }
+            : prev,
+        );
+      },
+    );
+  }, [clienteSeleccionado?.cafeId, clienteSeleccionado?.customerId]);
+
+  const refrescarCliente = useCallback(async (publicId) => {
+    const customer = await findCustomerByPublicId(publicId);
+    setClienteSeleccionado(customer);
+    return customer;
+  }, []);
+
   const cargarCliente = useCallback(async (rawId) => {
     setSearching(true);
     setError(null);
@@ -132,6 +167,9 @@ export default function AdminPanel() {
     setAddingStamp(true);
     setError(null);
     try {
+      // Siempre leer estado fresco (por si el cliente ya empezó cartón nuevo)
+      await refrescarCliente(clienteSeleccionado.publicId);
+
       const result = await addStampByPublicId(clienteSeleccionado.publicId);
       const nuevoCount =
         typeof result.stamps_count === "number"
@@ -155,9 +193,14 @@ export default function AdminPanel() {
         [clienteSeleccionado.publicId, ...prev].slice(0, 8),
       );
 
-      if (result.card_completed || nuevoCount >= clienteSeleccionado.stampsRequired) {
-        // La celebración grande va al móvil del cliente (Realtime).
-        // Aquí solo avisamos al barista de forma operativa.
+      if (result.auto_started_new_card) {
+        mostrarExito(
+          `Nuevo cartón + 1 punto · ${clienteSeleccionado.publicId}`,
+        );
+      } else if (
+        result.card_completed ||
+        nuevoCount >= clienteSeleccionado.stampsRequired
+      ) {
         mostrarExito(
           `Cartón completo · ${clienteSeleccionado.publicId} — café gratis listo`,
         );
@@ -169,12 +212,22 @@ export default function AdminPanel() {
     } catch (err) {
       console.error(err);
       const msg = err?.message || "";
-      if (msg.includes("add_stamp_by_public_id") || msg.includes("function") || msg.includes("card_complete")) {
+      if (
+        msg.includes("add_stamp_by_public_id") ||
+        msg.includes("function") ||
+        msg.includes("card_complete")
+      ) {
         setError(
-          "Falta ejecutar supabase/card_complete_migration.sql en el SQL Editor de Supabase.",
+          "Falta ejecutar supabase/fix_card_sync.sql en el SQL Editor de Supabase.",
         );
       } else {
         setError(msg || "No se pudo añadir el punto.");
+      }
+      // Re-sincroniza UI con la BD
+      try {
+        await refrescarCliente(clienteSeleccionado.publicId);
+      } catch {
+        // ignore
       }
     } finally {
       setAddingStamp(false);
@@ -199,14 +252,23 @@ export default function AdminPanel() {
             }
           : prev,
       );
-      mostrarExito(`Nuevo cartón para ${clienteSeleccionado.publicId}`);
+      mostrarExito(
+        result.already_reset
+          ? `El cliente ya tenía cartón nuevo · ${clienteSeleccionado.publicId}`
+          : `Nuevo cartón para ${clienteSeleccionado.publicId}`,
+      );
     } catch (err) {
       console.error(err);
       setError(
         err.message?.includes("start_new_card")
-          ? "Falta ejecutar supabase/card_complete_migration.sql en Supabase."
+          ? "Falta ejecutar supabase/fix_card_sync.sql en Supabase."
           : err.message || "No se pudo empezar el cartón nuevo.",
       );
+      try {
+        await refrescarCliente(clienteSeleccionado.publicId);
+      } catch {
+        // ignore
+      }
     } finally {
       setStartingNew(false);
     }
@@ -322,6 +384,12 @@ export default function AdminPanel() {
           busy={addingStamp || startingNew}
           onAddStamp={handleAddStamp}
           onStartNewCard={handleStartNewCard}
+          onRefresh={() =>
+            clienteSeleccionado &&
+            refrescarCliente(clienteSeleccionado.publicId).catch((err) =>
+              setError(err.message || "No se pudo actualizar"),
+            )
+          }
           onClose={() => setClienteSeleccionado(null)}
         />
 
