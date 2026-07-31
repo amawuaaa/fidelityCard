@@ -279,7 +279,7 @@ function AdminPanelInner({ onLogout }) {
         msg.includes("card_complete")
       ) {
         setError(
-          "Falta ejecutar supabase/secure_admin.sql (o fix_card_sync.sql) en Supabase.",
+          "Falta configurar permisos de barista en la base de datos.",
         );
       } else {
         setError(msg || "No se pudo añadir el punto.");
@@ -321,8 +321,8 @@ function AdminPanelInner({ onLogout }) {
     } catch (err) {
       console.error(err);
       setError(
-        err.message?.includes("start_new_card")
-          ? "Falta ejecutar supabase/fix_card_sync.sql en Supabase."
+        err.message?.includes("start_new_card") || err.message?.includes("function")
+          ? "No se pudo empezar el cartón. Revisa la configuración del panel."
           : err.message || "No se pudo empezar el cartón nuevo.",
       );
       try {
@@ -394,7 +394,7 @@ function AdminPanelInner({ onLogout }) {
               className="size-2.5 animate-pulse rounded-full bg-[#178e3c] shadow-[0_0_8px_rgba(23,142,60,0.8)]"
               aria-hidden
             />
-            {isSupabaseConfigured ? "Sesión activa" : "Modo local"}
+            En línea
           </div>
           <button
             type="button"

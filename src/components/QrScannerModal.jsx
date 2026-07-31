@@ -12,7 +12,6 @@ export default function QrScannerModal({ open, onClose, onScan }) {
   const [cameraError, setCameraError] = useState(null);
   const [manualId, setManualId] = useState("");
   const [facingMode, setFacingMode] = useState("environment");
-  const [frames, setFrames] = useState(0);
 
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
@@ -32,7 +31,6 @@ export default function QrScannerModal({ open, onClose, onScan }) {
     handledRef.current = false;
     setCameraError(null);
     setManualId("");
-    setFrames(0);
     setStatus("Abriendo cámara…");
 
     let cancelled = false;
@@ -107,8 +105,6 @@ export default function QrScannerModal({ open, onClose, onScan }) {
             cctx.drawImage(canvas, sx, sy, crop, crop, 0, 0, crop, crop);
             data = decodeCanvas(cropCanvas);
           }
-
-          setFrames((n) => n + 1);
 
           if (data) {
             void emit(data);
@@ -244,10 +240,6 @@ export default function QrScannerModal({ open, onClose, onScan }) {
 
             <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
               <div className="size-56 rounded-2xl border-2 border-white/90" />
-            </div>
-
-            <div className="absolute bottom-3 left-3 rounded-full bg-black/55 px-2.5 py-1 text-[10px] font-bold text-white">
-              frames: {frames}
             </div>
           </div>
 

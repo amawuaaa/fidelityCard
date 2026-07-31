@@ -100,9 +100,7 @@ export default function AdminLogin({ onSuccess }) {
         </form>
 
         <p className="mt-4 text-center text-xs text-gray-400">
-          {useEmailAuth
-            ? "Usa la cuenta de barista creada en Supabase Auth"
-            : "Modo local · PIN en VITE_ADMIN_PIN"}
+          Acceso solo para personal autorizado
         </p>
 
         <a

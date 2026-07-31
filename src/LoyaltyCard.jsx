@@ -2,7 +2,6 @@ import { useEffect, useRef, useState } from "react";
 import { Coffee, Nfc, Smile, Trophy } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
 import { BRAND } from "./config/brand.js";
-import { isSupabaseConfigured } from "./lib/supabase.js";
 import {
   createNfcRequest,
   ensureCustomerSession,
@@ -70,7 +69,7 @@ export default function LoyaltyCard() {
         );
       } catch (err) {
         console.error(err);
-        if (!cancelled) setError("No se pudo cargar la sesión. Revisa Supabase.");
+        if (!cancelled) setError("No se pudo cargar tu tarjeta. Inténtalo de nuevo.");
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -132,11 +131,7 @@ export default function LoyaltyCard() {
       setShowComplete(false);
     } catch (err) {
       console.error(err);
-      setError(
-        err.message?.includes("start_new_card")
-          ? "Falta ejecutar supabase/card_complete_migration.sql en Supabase."
-          : err.message || "No se pudo empezar el cartón nuevo.",
-      );
+      setError(err.message || "No se pudo empezar el cartón nuevo.");
     } finally {
       setStartingNew(false);
     }
@@ -148,19 +143,9 @@ export default function LoyaltyCard() {
   return (
     <div className="min-h-dvh bg-stone-50 text-gray-900">
       <div className="mx-auto flex min-h-dvh w-full max-w-md flex-col px-5 pb-8 pt-6">
-        <div className="mb-4 flex items-center justify-between gap-2">
+        <div className="mb-4 flex items-center justify-center">
           <span className="rounded-full bg-[#178e3c]/10 px-3 py-1 text-[11px] font-extrabold uppercase tracking-wider text-[#178e3c]">
             Demo · {BRAND.productName}
-          </span>
-          <span
-            className={[
-              "rounded-full px-2.5 py-1 text-[10px] font-bold",
-              isSupabaseConfigured
-                ? "bg-[#178e3c]/10 text-[#178e3c]"
-                : "bg-amber-50 text-amber-700",
-            ].join(" ")}
-          >
-            {isSupabaseConfigured ? "Supabase ON" : "Modo local"}
           </span>
         </div>
 
