@@ -1,68 +1,122 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Coffee, Nfc, QrCode, Smile } from "lucide-react";
-
-const TOTAL_CAFES = 6;
-const STORAGE_KEY = "episode_user_id";
+import { BRAND } from "./config/brand.js";
+import { isSupabaseConfigured } from "./lib/supabase.js";
+import {
+  createNfcRequest,
+  ensureCustomerSession,
+  subscribeLoyaltyCard,
+  subscribeNfcRequest,
+} from "./lib/loyaltyApi.js";
 
 export default function LoyaltyCard() {
-  // ——— Persistencia de sesión en localStorage ———
-  // Guarda el ID del cliente en React para usarlo en la UI (píldora, QR, NFC).
   const [userSession, setUserSession] = useState(null);
-
-  // Contador de sellos del cartón (mock inicial: 4 cafés ya comprados).
-  const [cafesComprados, setCafesComprados] = useState(4);
-
-  // UI local: muestra el mensaje de espera tras tocar el botón NFC.
+  const [customerId, setCustomerId] = useState(null);
+  const [cafeId, setCafeId] = useState(null);
+  const [cafeName, setCafeName] = useState(BRAND.cafeName);
+  const [cafesComprados, setCafesComprados] = useState(0);
+  const [stampsRequired, setStampsRequired] = useState(BRAND.stampsRequired);
   const [esperandoBarista, setEsperandoBarista] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const unsubRequestRef = useRef(null);
 
   useEffect(() => {
-    // 1) Lee del navegador la clave "episode_user_id" (persistencia entre visitas).
-    const storedUserId = localStorage.getItem(STORAGE_KEY);
+    let cancelled = false;
+    let unsubCard = () => {};
 
-    // 2) Si ya existía un ID, reutilízalo (mismo cliente / mismo dispositivo).
-    if (storedUserId) {
-      // 3) Sincroniza el estado de React con lo que había en localStorage.
-      setUserSession(storedUserId);
-      // 4) Sale temprano: no hace falta crear un usuario nuevo.
-      return;
-    }
+    (async () => {
+      try {
+        const session = await ensureCustomerSession();
+        if (cancelled) return;
 
-    // 5) Si no hay ID, genera uno aleatorio con prefijo "usr_" (simula alta de usuario).
-    const nuevoUserId = `usr_${Math.floor(10000 + Math.random() * 90000)}`;
+        setUserSession(session.publicId);
+        setCustomerId(session.customerId);
+        setCafeId(session.cafeId);
+        setCafeName(session.cafeName);
+        setCafesComprados(session.stampsCount);
+        setStampsRequired(session.stampsRequired);
 
-    // 6) Guarda el ID nuevo en localStorage para la próxima visita.
-    localStorage.setItem(STORAGE_KEY, nuevoUserId);
+        unsubCard = subscribeLoyaltyCard(
+          { cafeId: session.cafeId, customerId: session.customerId },
+          (card) => setCafesComprados(card.stamps_count),
+        );
+      } catch (err) {
+        console.error(err);
+        if (!cancelled) setError("No se pudo cargar la sesión. Revisa Supabase.");
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
 
-    // 7) Actualiza el estado de React para que la UI muestre el ID de inmediato.
-    setUserSession(nuevoUserId);
-
-    // 8) En el futuro: también crear el registro en Supabase (tabla profiles / loyalty_stamps).
+    return () => {
+      cancelled = true;
+      unsubCard();
+      if (unsubRequestRef.current) unsubRequestRef.current();
+    };
   }, []);
 
-  /**
-   * handleNfcTap
-   * Función preparada para el flujo NFC en barra.
-   * Aquí se conectará la lógica de "Petición a la Base de Datos"
-   * cuando el usuario acerque su teléfono a la pegatina NFC en la barra
-   * (ej. POST a Supabase sumando +1 sello al userSession).
-   */
-  const handleNfcTap = () => {
-    // TODO (Base de Datos):
-    // await supabase.from('loyalty_stamps').upsert({ user_id: userSession, stamps_count: cafesComprados + 1 })
-    // setCafesComprados((prev) => prev + 1)
+  const handleNfcTap = async () => {
+    if (!userSession || esperandoBarista) return;
 
-    // Simulación local del proceso mientras el barista confirma.
     setEsperandoBarista(true);
+    setError(null);
+
+    try {
+      const request = await createNfcRequest({
+        cafeId,
+        customerId,
+        publicId: userSession,
+      });
+
+      // En modo local no hay barista remoto: el mensaje se queda visible.
+      if (request.mode === "local") return;
+
+      if (unsubRequestRef.current) unsubRequestRef.current();
+      unsubRequestRef.current = subscribeNfcRequest(request.id, (updated) => {
+        if (updated.status === "aprobado") {
+          setEsperandoBarista(false);
+          if (typeof updated.stamps_count === "number") {
+            setCafesComprados(updated.stamps_count);
+          }
+        }
+        if (updated.status === "rechazado") {
+          setEsperandoBarista(false);
+        }
+      });
+    } catch (err) {
+      console.error(err);
+      setEsperandoBarista(false);
+      setError("No se pudo enviar la petición NFC.");
+    }
   };
+
+  const restantes = Math.max(0, stampsRequired - cafesComprados);
 
   return (
     <div className="min-h-dvh bg-stone-50 text-gray-900">
       <div className="mx-auto flex min-h-dvh w-full max-w-md flex-col px-5 pb-8 pt-6">
-        {/* ——— Header ——— */}
+        {/* Badge demo */}
+        <div className="mb-4 flex items-center justify-between gap-2">
+          <span className="rounded-full bg-[#178e3c]/10 px-3 py-1 text-[11px] font-extrabold uppercase tracking-wider text-[#178e3c]">
+            Demo · {BRAND.productName}
+          </span>
+          <span
+            className={[
+              "rounded-full px-2.5 py-1 text-[10px] font-bold",
+              isSupabaseConfigured
+                ? "bg-[#178e3c]/10 text-[#178e3c]"
+                : "bg-amber-50 text-amber-700",
+            ].join(" ")}
+          >
+            {isSupabaseConfigured ? "Supabase ON" : "Modo local"}
+          </span>
+        </div>
+
         <header className="mb-8 text-center">
           <div className="mb-5 flex items-center justify-center gap-1.5">
             <h1 className="text-xl font-extrabold tracking-[0.18em] text-gray-900">
-              EPISODE :)
+              {cafeName.toUpperCase()}
             </h1>
             <Smile
               className="size-5 text-[#178e3c]"
@@ -75,26 +129,31 @@ export default function LoyaltyCard() {
             Tu Tarjeta de Fidelidad
           </h2>
           <p className="mt-2 text-sm font-medium text-gray-500">
-            Pequeños placeres: 1 café gratis cada 6 compras
+            {BRAND.productTagline}: 1 café gratis cada {stampsRequired} compras
           </p>
         </header>
 
-        {/* ——— Cartón digital (grid 2×3) ——— */}
+        {error && (
+          <p className="mb-4 rounded-2xl bg-red-50 px-4 py-3 text-sm font-semibold text-red-600">
+            {error}
+          </p>
+        )}
+
         <section
           className="rounded-3xl bg-white p-6 shadow-sm"
           aria-label="Progreso de fidelidad"
         >
           <div className="mb-5 flex items-center justify-between">
             <p className="text-sm font-bold text-gray-900">
-              {cafesComprados} / {TOTAL_CAFES} cafés
+              {loading ? "…" : `${cafesComprados} / ${stampsRequired} cafés`}
             </p>
             <span className="rounded-full bg-[#178e3c]/10 px-3 py-1 text-xs font-bold text-[#178e3c]">
-              {TOTAL_CAFES - cafesComprados} para gratis
+              {restantes === 0 ? "¡Gratis listo!" : `${restantes} para gratis`}
             </span>
           </div>
 
           <div className="grid grid-cols-3 gap-4">
-            {Array.from({ length: TOTAL_CAFES }).map((_, index) => {
+            {Array.from({ length: stampsRequired }).map((_, index) => {
               const comprado = index < cafesComprados;
 
               return (
@@ -122,7 +181,6 @@ export default function LoyaltyCard() {
           </div>
         </section>
 
-        {/* ——— Área de acción: QR / NFC ——— */}
         <section className="mt-8 flex flex-col items-center">
           <div className="flex size-44 items-center justify-center rounded-3xl bg-white p-6 shadow-sm">
             <QrCode
@@ -136,7 +194,6 @@ export default function LoyaltyCard() {
             Muestra este código al barista en caja
           </p>
 
-          {/* ID generado / leído desde localStorage */}
           <div className="mt-3 inline-flex items-center gap-1.5 rounded-full bg-white px-3.5 py-1.5 text-xs font-bold text-gray-600 shadow-sm">
             <span className="size-1.5 rounded-full bg-[#178e3c]" aria-hidden />
             ID: {userSession ?? "…"}
@@ -145,7 +202,8 @@ export default function LoyaltyCard() {
           <button
             type="button"
             onClick={handleNfcTap}
-            className="mt-6 flex w-full items-center justify-center gap-2 rounded-3xl bg-[#178e3c] py-4 text-base font-bold text-white shadow-sm transition active:scale-[0.98] hover:bg-[#136f2f]"
+            disabled={loading || esperandoBarista}
+            className="mt-6 flex w-full items-center justify-center gap-2 rounded-3xl bg-[#178e3c] py-4 text-base font-bold text-white shadow-sm transition active:scale-[0.98] hover:bg-[#136f2f] disabled:cursor-not-allowed disabled:opacity-60"
           >
             <Nfc className="size-5" strokeWidth={2.5} aria-hidden />
             Tocar para pedir punto
@@ -171,23 +229,3 @@ export default function LoyaltyCard() {
     </div>
   );
 }
-
-/*
- * =============================================================================
- * CONFIGURACIÓN PWA (próximos pasos) — Añadir a pantalla de inicio
- * =============================================================================
- *
- * Para que el navegador del teléfono ofrezca “Añadir a pantalla de inicio”
- * y la web se sienta como una app nativa, hay que crear estos archivos
- * adicionales (aún no implementados en este proyecto):
- *
- * 1) public/manifest.json  (Web App Manifest)
- * 2) Enlace al manifest + metas apple-* desde index.html
- * 3) Service Worker (public/sw.js o vite-plugin-pwa)
- * 4) Iconos en public/icons/ (192 / 512 / maskable)
- * 5) HTTPS (o localhost) para que el navegador permita instalar
- *
- * Resumen: manifest.json + Service Worker + iconos + metas en index.html
- * = la web puede instalarse como app en la pantalla de inicio del móvil.
- * =============================================================================
- */
