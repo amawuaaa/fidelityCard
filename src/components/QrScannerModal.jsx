@@ -9,59 +9,108 @@ import { Html5Qrcode } from "html5-qrcode";
 export default function QrScannerModal({ open, onClose, onScan }) {
   const [cameraError, setCameraError] = useState(null);
   const [starting, setStarting] = useState(false);
+  const [manualId, setManualId] = useState("");
+  const [regionId, setRegionId] = useState(null);
   const scannerRef = useRef(null);
   const handledRef = useRef(false);
-  const regionId = "stamp-qr-reader";
+  const onScanRef = useRef(onScan);
 
+  onScanRef.current = onScan;
+
+  // Al abrir: genera un id fresco para el contenedor del video
   useEffect(() => {
-    if (!open) return undefined;
-
-    handledRef.current = false;
+    if (!open) {
+      setRegionId(null);
+      return;
+    }
     setCameraError(null);
     setStarting(true);
+    setManualId("");
+    handledRef.current = false;
+    setRegionId(`stamp-qr-reader-${Date.now()}`);
+  }, [open]);
+
+  // Cuando el contenedor ya existe en el DOM, arranca la cámara
+  useEffect(() => {
+    if (!open || !regionId) return undefined;
 
     let cancelled = false;
-    const scanner = new Html5Qrcode(regionId);
-    scannerRef.current = scanner;
+    let scanner = null;
 
-    (async () => {
+    const startTimer = window.setTimeout(async () => {
       try {
-        await scanner.start(
-          { facingMode: "environment" },
-          { fps: 10, qrbox: { width: 240, height: 240 } },
-          (decodedText) => {
-            if (handledRef.current || cancelled) return;
-            handledRef.current = true;
-            onScan(decodedText);
+        scanner = new Html5Qrcode(regionId);
+        scannerRef.current = scanner;
+
+        const cameras = await Html5Qrcode.getCameras();
+        const backCam =
+          cameras.find((c) => /back|rear|environment/i.test(c.label)) ||
+          cameras[cameras.length - 1];
+
+        const config = {
+          fps: 12,
+          qrbox: (viewW, viewH) => {
+            const side = Math.min(viewW, viewH) * 0.72;
+            return { width: side, height: side };
           },
-          () => {
-            // ignorar frames sin QR
-          },
-        );
+          aspectRatio: 1.333,
+        };
+
+        const onSuccess = async (decodedText) => {
+          if (handledRef.current || cancelled) return;
+          handledRef.current = true;
+
+          try {
+            if (scanner?.isScanning) await scanner.stop();
+          } catch {
+            // ignore
+          }
+
+          onScanRef.current?.(String(decodedText).trim());
+        };
+
+        if (backCam?.id) {
+          await scanner.start(backCam.id, config, onSuccess, () => {});
+        } else {
+          await scanner.start(
+            { facingMode: "environment" },
+            config,
+            onSuccess,
+            () => {},
+          );
+        }
+
         if (!cancelled) setStarting(false);
       } catch (err) {
         console.error(err);
         if (!cancelled) {
           setStarting(false);
           setCameraError(
-            "No se pudo abrir la cámara. Usa HTTPS (o localhost), permite el permiso de cámara e inténtalo en un móvil/tablet.",
+            "No se pudo abrir la cámara. Prueba en móvil con HTTPS, permite el permiso, o escribe el ID abajo.",
           );
         }
       }
-    })();
+    }, 400);
 
     return () => {
       cancelled = true;
+      window.clearTimeout(startTimer);
       const active = scannerRef.current;
       scannerRef.current = null;
-      if (active?.isScanning) {
-        active
-          .stop()
-          .then(() => active.clear())
-          .catch(() => {});
+      if (active) {
+        const stop = active.isScanning
+          ? active.stop().catch(() => {})
+          : Promise.resolve();
+        stop.finally(() => {
+          try {
+            active.clear();
+          } catch {
+            // ignore
+          }
+        });
       }
     };
-  }, [open, onScan]);
+  }, [open, regionId]);
 
   if (!open) return null;
 
@@ -82,13 +131,20 @@ export default function QrScannerModal({ open, onClose, onScan }) {
 
         <div className="space-y-3 p-5">
           <p className="text-sm text-gray-500">
-            Apunta la cámara al código QR de la tarjeta del cliente.
+            Apunta la cámara al QR de la tarjeta del cliente (mejor desde otro
+            teléfono).
           </p>
 
-          <div
-            id={regionId}
-            className="overflow-hidden rounded-2xl bg-stone-900 [&_video]:rounded-2xl"
-          />
+          {regionId ? (
+            <div
+              id={regionId}
+              className="min-h-56 overflow-hidden rounded-2xl bg-stone-900 [&_video]:rounded-2xl"
+            />
+          ) : (
+            <div className="flex min-h-56 items-center justify-center rounded-2xl bg-stone-900 text-sm text-white/60">
+              Preparando cámara…
+            </div>
+          )}
 
           {starting && !cameraError && (
             <p className="text-center text-sm font-semibold text-gray-400">
@@ -101,6 +157,33 @@ export default function QrScannerModal({ open, onClose, onScan }) {
               {cameraError}
             </p>
           )}
+
+          <div className="border-t border-stone-100 pt-3">
+            <p className="mb-2 text-xs font-bold uppercase tracking-wide text-gray-400">
+              O escribe el ID
+            </p>
+            <form
+              className="flex gap-2"
+              onSubmit={(e) => {
+                e.preventDefault();
+                if (!manualId.trim()) return;
+                onScanRef.current?.(manualId.trim());
+              }}
+            >
+              <input
+                value={manualId}
+                onChange={(e) => setManualId(e.target.value)}
+                placeholder="usr_12345"
+                className="min-w-0 flex-1 rounded-xl border border-stone-200 bg-stone-50 px-3 py-2 text-sm font-semibold outline-none focus:ring-2 focus:ring-[#178e3c]"
+              />
+              <button
+                type="submit"
+                className="rounded-xl bg-[#178e3c] px-4 py-2 text-sm font-bold text-white"
+              >
+                Ir
+              </button>
+            </form>
+          </div>
         </div>
       </div>
     </div>

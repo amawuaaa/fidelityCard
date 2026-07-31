@@ -28,6 +28,7 @@ export async function ensureCustomerSession() {
       cafeId: null,
       stampsCount: 4,
       stampsRequired: BRAND.stampsRequired,
+      cardsCompleted: 0,
       cafeName: BRAND.cafeName,
       mode: "local",
     };
@@ -63,7 +64,7 @@ export async function ensureCustomerSession() {
   // 3) Tarjeta de fidelidad (cafe + customer)
   let { data: card } = await supabase
     .from("loyalty_cards")
-    .select("id, stamps_count")
+    .select("id, stamps_count, cards_completed")
     .eq("cafe_id", cafe.id)
     .eq("customer_id", customer.id)
     .maybeSingle();
@@ -75,8 +76,9 @@ export async function ensureCustomerSession() {
         cafe_id: cafe.id,
         customer_id: customer.id,
         stamps_count: 0,
+        cards_completed: 0,
       })
-      .select("id, stamps_count")
+      .select("id, stamps_count, cards_completed")
       .single();
 
     if (cardError) throw cardError;
@@ -89,6 +91,7 @@ export async function ensureCustomerSession() {
     cafeId: cafe.id,
     stampsCount: card.stamps_count,
     stampsRequired: cafe.stamps_required ?? BRAND.stampsRequired,
+    cardsCompleted: card.cards_completed ?? 0,
     cafeName: cafe.name,
     mode: "supabase",
   };
@@ -306,15 +309,17 @@ export async function fetchTodayApprovals(cafeId) {
  */
 export function parseCustomerPublicId(raw) {
   if (!raw) return null;
-  const text = String(raw).trim();
+  const text = String(raw).trim().replace(/^["']|["']$/g, "");
 
-  const direct = text.match(/\b(usr_\d+)\b/i);
+  const direct = text.match(/(usr_\d+)/i);
   if (direct) return direct[1];
 
   try {
     const url = new URL(text);
     const fromQuery = url.searchParams.get("id") || url.searchParams.get("user");
     if (fromQuery) return parseCustomerPublicId(fromQuery);
+    const pathMatch = url.pathname.match(/(usr_\d+)/i);
+    if (pathMatch) return pathMatch[1];
   } catch {
     // no es URL
   }
@@ -335,6 +340,7 @@ export async function findCustomerByPublicId(publicId, cafeSlug = BRAND.cafeSlug
       publicId: cleanId,
       stampsCount: 3,
       stampsRequired: BRAND.stampsRequired,
+      cardsCompleted: 1,
       cafeName: BRAND.cafeName,
       mode: "local",
     };
@@ -361,7 +367,7 @@ export async function findCustomerByPublicId(publicId, cafeSlug = BRAND.cafeSlug
 
   const { data: card } = await supabase
     .from("loyalty_cards")
-    .select("stamps_count")
+    .select("stamps_count, cards_completed")
     .eq("cafe_id", cafe.id)
     .eq("customer_id", customer.id)
     .maybeSingle();
@@ -372,6 +378,7 @@ export async function findCustomerByPublicId(publicId, cafeSlug = BRAND.cafeSlug
     cafeId: cafe.id,
     stampsCount: card?.stamps_count ?? 0,
     stampsRequired: cafe.stamps_required ?? BRAND.stampsRequired,
+    cardsCompleted: card?.cards_completed ?? 0,
     cafeName: cafe.name,
     mode: "supabase",
   };
@@ -391,11 +398,39 @@ export async function addStampByPublicId(publicId, cafeSlug = BRAND.cafeSlug) {
     return {
       public_id: cleanId,
       stamps_count: null,
+      cards_completed: null,
+      card_completed: false,
       mode: "local",
     };
   }
 
   const { data, error } = await supabase.rpc("add_stamp_by_public_id", {
+    p_cafe_slug: cafeSlug,
+    p_public_id: cleanId,
+  });
+
+  if (error) throw error;
+  return { ...data, mode: "supabase" };
+}
+
+/** Reinicia sellos a 0 tras completar un cartón (mantiene cards_completed). */
+export async function startNewCard(publicId, cafeSlug = BRAND.cafeSlug) {
+  const cleanId = parseCustomerPublicId(publicId);
+  if (!cleanId) {
+    throw new Error("ID de cliente no válido.");
+  }
+
+  if (!isSupabaseConfigured) {
+    return {
+      public_id: cleanId,
+      stamps_count: 0,
+      cards_completed: null,
+      card_completed: false,
+      mode: "local",
+    };
+  }
+
+  const { data, error } = await supabase.rpc("start_new_card", {
     p_cafe_slug: cafeSlug,
     p_public_id: cleanId,
   });

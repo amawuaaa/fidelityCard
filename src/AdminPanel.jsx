@@ -9,11 +9,13 @@ import {
   fetchTodayApprovals,
   findCustomerByPublicId,
   rejectNfcRequest,
+  startNewCard,
   subscribePendingNfcRequests,
 } from "./lib/loyaltyApi.js";
 import QrScannerModal from "./components/QrScannerModal.jsx";
 import ManualSearchModal from "./components/ManualSearchModal.jsx";
 import CustomerResultCard from "./components/CustomerResultCard.jsx";
+import CardCompleteModal from "./components/CardCompleteModal.jsx";
 
 /**
  * Panel de Administrador (Barista) — Demo multi-cafetería
@@ -34,6 +36,8 @@ export default function AdminPanel() {
   const [searching, setSearching] = useState(false);
   const [clienteSeleccionado, setClienteSeleccionado] = useState(null);
   const [addingStamp, setAddingStamp] = useState(false);
+  const [showComplete, setShowComplete] = useState(false);
+  const [startingNew, setStartingNew] = useState(false);
 
   const exitoTimerRef = useRef(null);
 
@@ -91,9 +95,14 @@ export default function AdminPanel() {
       setClienteSeleccionado(customer);
       setScannerOpen(false);
       setSearchOpen(false);
+      if (customer.stampsCount >= customer.stampsRequired) {
+        setShowComplete(true);
+      }
     } catch (err) {
       console.error(err);
-      setError(err.message || "No se pudo encontrar el cliente.");
+      setError(
+        `${err.message || "No se pudo encontrar el cliente."} (leído: "${String(rawId).slice(0, 40)}")`,
+      );
       setScannerOpen(false);
     } finally {
       setSearching(false);
@@ -116,34 +125,77 @@ export default function AdminPanel() {
       const nuevoCount =
         typeof result.stamps_count === "number"
           ? result.stamps_count
-          : (clienteSeleccionado.stampsCount + 1) %
-            clienteSeleccionado.stampsRequired;
+          : clienteSeleccionado.stampsCount + 1;
+      const cards =
+        typeof result.cards_completed === "number"
+          ? result.cards_completed
+          : clienteSeleccionado.cardsCompleted ?? 0;
 
       setClienteSeleccionado((prev) =>
         prev
           ? {
               ...prev,
               stampsCount: nuevoCount,
+              cardsCompleted: cards,
             }
           : prev,
       );
       setHistorialHoy((prev) =>
         [clienteSeleccionado.publicId, ...prev].slice(0, 8),
       );
-      mostrarExito(`Punto añadido a ${clienteSeleccionado.publicId}`);
+
+      if (result.card_completed || nuevoCount >= clienteSeleccionado.stampsRequired) {
+        setShowComplete(true);
+        mostrarExito(`¡Cartón completo para ${clienteSeleccionado.publicId}!`);
+      } else {
+        mostrarExito(`Punto añadido a ${clienteSeleccionado.publicId}`);
+      }
+
       if (isSupabaseConfigured) await cargarBandeja();
     } catch (err) {
       console.error(err);
       const msg = err?.message || "";
-      if (msg.includes("add_stamp_by_public_id") || msg.includes("function")) {
+      if (msg.includes("add_stamp_by_public_id") || msg.includes("function") || msg.includes("card_complete")) {
         setError(
-          "Falta ejecutar supabase/add_stamp_rpc.sql en el SQL Editor de Supabase.",
+          "Falta ejecutar supabase/card_complete_migration.sql en el SQL Editor de Supabase.",
         );
       } else {
         setError(msg || "No se pudo añadir el punto.");
       }
     } finally {
       setAddingStamp(false);
+    }
+  };
+
+  const handleStartNewCard = async () => {
+    if (!clienteSeleccionado || startingNew) return;
+    setStartingNew(true);
+    setError(null);
+    try {
+      const result = await startNewCard(clienteSeleccionado.publicId);
+      setClienteSeleccionado((prev) =>
+        prev
+          ? {
+              ...prev,
+              stampsCount: result.stamps_count ?? 0,
+              cardsCompleted:
+                typeof result.cards_completed === "number"
+                  ? result.cards_completed
+                  : prev.cardsCompleted,
+            }
+          : prev,
+      );
+      setShowComplete(false);
+      mostrarExito(`Nuevo cartón para ${clienteSeleccionado.publicId}`);
+    } catch (err) {
+      console.error(err);
+      setError(
+        err.message?.includes("start_new_card")
+          ? "Falta ejecutar supabase/card_complete_migration.sql en Supabase."
+          : err.message || "No se pudo empezar el cartón nuevo.",
+      );
+    } finally {
+      setStartingNew(false);
     }
   };
 
@@ -254,8 +306,9 @@ export default function AdminPanel() {
 
         <CustomerResultCard
           customer={clienteSeleccionado}
-          busy={addingStamp}
+          busy={addingStamp || startingNew}
           onAddStamp={handleAddStamp}
+          onStartNewCard={handleStartNewCard}
           onClose={() => setClienteSeleccionado(null)}
         />
 
@@ -358,6 +411,15 @@ export default function AdminPanel() {
         onClose={() => setSearchOpen(false)}
         onSearch={cargarCliente}
         searching={searching}
+      />
+
+      <CardCompleteModal
+        open={showComplete}
+        publicId={clienteSeleccionado?.publicId}
+        cardsCompleted={clienteSeleccionado?.cardsCompleted ?? 0}
+        busy={startingNew}
+        onStartNew={handleStartNewCard}
+        onClose={() => setShowComplete(false)}
       />
     </div>
   );

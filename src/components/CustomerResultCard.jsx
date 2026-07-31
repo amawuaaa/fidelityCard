@@ -1,4 +1,4 @@
-import { Check, Coffee, X } from "lucide-react";
+import { Check, Coffee, Trophy, X } from "lucide-react";
 
 /**
  * Resultado de cliente encontrado (QR o búsqueda) con acción de añadir punto.
@@ -7,10 +7,12 @@ export default function CustomerResultCard({
   customer,
   busy,
   onAddStamp,
+  onStartNewCard,
   onClose,
 }) {
   if (!customer) return null;
 
+  const completo = customer.stampsCount >= customer.stampsRequired;
   const restantes = Math.max(
     0,
     customer.stampsRequired - customer.stampsCount,
@@ -28,7 +30,9 @@ export default function CustomerResultCard({
           </p>
           <p className="mt-1 text-sm font-semibold text-gray-500">
             {customer.stampsCount} / {customer.stampsRequired} cafés
-            {restantes > 0 ? ` · ${restantes} para gratis` : " · ¡Gratis listo!"}
+            {completo
+              ? " · ¡Cartón completo!"
+              : ` · ${restantes} para gratis`}
           </p>
         </div>
         <button
@@ -41,7 +45,7 @@ export default function CustomerResultCard({
         </button>
       </div>
 
-      <div className="mb-5 grid grid-cols-6 gap-2">
+      <div className="mb-4 grid grid-cols-6 gap-2">
         {Array.from({ length: customer.stampsRequired }).map((_, index) => {
           const filled = index < customer.stampsCount;
           return (
@@ -50,6 +54,7 @@ export default function CustomerResultCard({
               className={[
                 "flex aspect-square items-center justify-center rounded-full",
                 filled ? "bg-[#178e3c]" : "bg-gray-100",
+                completo && filled ? "animate-pulse" : "",
               ].join(" ")}
             >
               <Coffee
@@ -61,15 +66,35 @@ export default function CustomerResultCard({
         })}
       </div>
 
-      <button
-        type="button"
-        disabled={busy}
-        onClick={onAddStamp}
-        className="flex w-full items-center justify-center gap-2 rounded-2xl bg-[#178e3c] py-4 text-base font-bold text-white shadow-sm transition hover:bg-[#136f2f] disabled:opacity-60"
-      >
-        <Check className="size-5" strokeWidth={2.5} />
-        {busy ? "Añadiendo…" : "Añadir 1 punto"}
-      </button>
+      <div className="mb-4 flex items-center justify-center gap-2 rounded-2xl bg-stone-50 px-3 py-2 text-sm font-bold text-gray-700">
+        <Trophy className="size-4 text-[#178e3c]" strokeWidth={2.5} />
+        {customer.cardsCompleted ?? 0}{" "}
+        {(customer.cardsCompleted ?? 0) === 1
+          ? "cartón completado"
+          : "cartones completados"}
+      </div>
+
+      {completo ? (
+        <button
+          type="button"
+          disabled={busy}
+          onClick={onStartNewCard}
+          className="flex w-full items-center justify-center gap-2 rounded-2xl bg-[#178e3c] py-4 text-base font-bold text-white shadow-sm transition hover:bg-[#136f2f] disabled:opacity-60"
+        >
+          <Check className="size-5" strokeWidth={2.5} />
+          {busy ? "Empezando…" : "Empezar cartón nuevo"}
+        </button>
+      ) : (
+        <button
+          type="button"
+          disabled={busy}
+          onClick={onAddStamp}
+          className="flex w-full items-center justify-center gap-2 rounded-2xl bg-[#178e3c] py-4 text-base font-bold text-white shadow-sm transition hover:bg-[#136f2f] disabled:opacity-60"
+        >
+          <Check className="size-5" strokeWidth={2.5} />
+          {busy ? "Añadiendo…" : "Añadir 1 punto"}
+        </button>
+      )}
     </section>
   );
 }

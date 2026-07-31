@@ -1,14 +1,16 @@
 import { useEffect, useRef, useState } from "react";
-import { Coffee, Nfc, Smile } from "lucide-react";
+import { Coffee, Nfc, Smile, Trophy } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
 import { BRAND } from "./config/brand.js";
 import { isSupabaseConfigured } from "./lib/supabase.js";
 import {
   createNfcRequest,
   ensureCustomerSession,
+  startNewCard,
   subscribeLoyaltyCard,
   subscribeNfcRequest,
 } from "./lib/loyaltyApi.js";
+import CardCompleteModal from "./components/CardCompleteModal.jsx";
 
 export default function LoyaltyCard() {
   const [userSession, setUserSession] = useState(null);
@@ -17,10 +19,14 @@ export default function LoyaltyCard() {
   const [cafeName, setCafeName] = useState(BRAND.cafeName);
   const [cafesComprados, setCafesComprados] = useState(0);
   const [stampsRequired, setStampsRequired] = useState(BRAND.stampsRequired);
+  const [cardsCompleted, setCardsCompleted] = useState(0);
   const [esperandoBarista, setEsperandoBarista] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [showComplete, setShowComplete] = useState(false);
+  const [startingNew, setStartingNew] = useState(false);
   const unsubRequestRef = useRef(null);
+  const prevStampsRef = useRef(0);
 
   useEffect(() => {
     let cancelled = false;
@@ -37,10 +43,30 @@ export default function LoyaltyCard() {
         setCafeName(session.cafeName);
         setCafesComprados(session.stampsCount);
         setStampsRequired(session.stampsRequired);
+        setCardsCompleted(session.cardsCompleted ?? 0);
+        prevStampsRef.current = session.stampsCount;
+
+        if (session.stampsCount >= session.stampsRequired) {
+          setShowComplete(true);
+        }
 
         unsubCard = subscribeLoyaltyCard(
           { cafeId: session.cafeId, customerId: session.customerId },
-          (card) => setCafesComprados(card.stamps_count),
+          (card) => {
+            const next = card.stamps_count;
+            const required = session.stampsRequired;
+            setCafesComprados(next);
+            if (typeof card.cards_completed === "number") {
+              setCardsCompleted(card.cards_completed);
+            }
+            if (
+              next >= required &&
+              prevStampsRef.current < required
+            ) {
+              setShowComplete(true);
+            }
+            prevStampsRef.current = next;
+          },
         );
       } catch (err) {
         console.error(err);
@@ -59,6 +85,10 @@ export default function LoyaltyCard() {
 
   const handleNfcTap = async () => {
     if (!userSession || esperandoBarista) return;
+    if (cafesComprados >= stampsRequired) {
+      setShowComplete(true);
+      return;
+    }
 
     setEsperandoBarista(true);
     setError(null);
@@ -70,16 +100,12 @@ export default function LoyaltyCard() {
         publicId: userSession,
       });
 
-      // En modo local no hay barista remoto: el mensaje se queda visible.
       if (request.mode === "local") return;
 
       if (unsubRequestRef.current) unsubRequestRef.current();
       unsubRequestRef.current = subscribeNfcRequest(request.id, (updated) => {
         if (updated.status === "aprobado") {
           setEsperandoBarista(false);
-          if (typeof updated.stamps_count === "number") {
-            setCafesComprados(updated.stamps_count);
-          }
         }
         if (updated.status === "rechazado") {
           setEsperandoBarista(false);
@@ -92,12 +118,36 @@ export default function LoyaltyCard() {
     }
   };
 
+  const handleStartNewCard = async () => {
+    if (!userSession || startingNew) return;
+    setStartingNew(true);
+    setError(null);
+    try {
+      const result = await startNewCard(userSession);
+      setCafesComprados(result.stamps_count ?? 0);
+      if (typeof result.cards_completed === "number") {
+        setCardsCompleted(result.cards_completed);
+      }
+      prevStampsRef.current = 0;
+      setShowComplete(false);
+    } catch (err) {
+      console.error(err);
+      setError(
+        err.message?.includes("start_new_card")
+          ? "Falta ejecutar supabase/card_complete_migration.sql en Supabase."
+          : err.message || "No se pudo empezar el cartón nuevo.",
+      );
+    } finally {
+      setStartingNew(false);
+    }
+  };
+
   const restantes = Math.max(0, stampsRequired - cafesComprados);
+  const cartonCompleto = cafesComprados >= stampsRequired;
 
   return (
     <div className="min-h-dvh bg-stone-50 text-gray-900">
       <div className="mx-auto flex min-h-dvh w-full max-w-md flex-col px-5 pb-8 pt-6">
-        {/* Badge demo */}
         <div className="mb-4 flex items-center justify-between gap-2">
           <span className="rounded-full bg-[#178e3c]/10 px-3 py-1 text-[11px] font-extrabold uppercase tracking-wider text-[#178e3c]">
             Demo · {BRAND.productName}
@@ -141,7 +191,10 @@ export default function LoyaltyCard() {
         )}
 
         <section
-          className="rounded-3xl bg-white p-6 shadow-sm"
+          className={[
+            "rounded-3xl bg-white p-6 shadow-sm transition",
+            cartonCompleto ? "ring-2 ring-[#178e3c] ring-offset-2" : "",
+          ].join(" ")}
           aria-label="Progreso de fidelidad"
         >
           <div className="mb-5 flex items-center justify-between">
@@ -149,7 +202,9 @@ export default function LoyaltyCard() {
               {loading ? "…" : `${cafesComprados} / ${stampsRequired} cafés`}
             </p>
             <span className="rounded-full bg-[#178e3c]/10 px-3 py-1 text-xs font-bold text-[#178e3c]">
-              {restantes === 0 ? "¡Gratis listo!" : `${restantes} para gratis`}
+              {cartonCompleto
+                ? "¡Gratis listo!"
+                : `${restantes} para gratis`}
             </span>
           </div>
 
@@ -161,8 +216,11 @@ export default function LoyaltyCard() {
                 <div
                   key={index}
                   className={[
-                    "flex aspect-square items-center justify-center rounded-full",
-                    comprado ? "bg-[#178e3c] shadow-sm" : "bg-gray-100",
+                    "flex aspect-square items-center justify-center rounded-full transition duration-500",
+                    comprado
+                      ? "scale-105 bg-[#178e3c] shadow-sm"
+                      : "bg-gray-100",
+                    cartonCompleto && comprado ? "animate-pulse" : "",
                   ].join(" ")}
                   aria-label={
                     comprado
@@ -180,6 +238,22 @@ export default function LoyaltyCard() {
               );
             })}
           </div>
+
+          <div className="mt-5 flex items-center justify-center gap-2 rounded-2xl bg-stone-50 px-3 py-2.5 text-sm font-bold text-gray-700">
+            <Trophy className="size-4 text-[#178e3c]" strokeWidth={2.5} />
+            {cardsCompleted}{" "}
+            {cardsCompleted === 1 ? "cartón completado" : "cartones completados"}
+          </div>
+
+          {cartonCompleto && (
+            <button
+              type="button"
+              onClick={() => setShowComplete(true)}
+              className="mt-3 w-full rounded-2xl bg-[#178e3c] py-3 text-sm font-bold text-white"
+            >
+              Canjear / empezar cartón nuevo
+            </button>
+          )}
         </section>
 
         <section className="mt-8 flex flex-col items-center">
@@ -235,6 +309,15 @@ export default function LoyaltyCard() {
           Ir al Panel de Barista
         </a>
       </div>
+
+      <CardCompleteModal
+        open={showComplete}
+        publicId={userSession}
+        cardsCompleted={cardsCompleted}
+        busy={startingNew}
+        onStartNew={handleStartNewCard}
+        onClose={() => setShowComplete(false)}
+      />
     </div>
   );
 }
