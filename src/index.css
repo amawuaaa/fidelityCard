@@ -6,6 +6,16 @@
   -moz-osx-font-smoothing: grayscale;
   --brand: #178e3c;
   --brand-hover: #136f2f;
+  --page-bg: #fafaf9;
+  --rainbow: linear-gradient(
+    135deg,
+    #c084fc 0%,
+    #facc15 20%,
+    #ef4444 40%,
+    #f472b6 60%,
+    #16a34a 80%,
+    #38bdf8 100%
+  );
 }
 
 /* Color del café activo (se actualiza desde JS) */
@@ -35,10 +45,39 @@
   --tw-ring-color: var(--brand);
 }
 
+/* the Layers — botones / anillos con arcoíris */
+html[data-theme="rainbow"] .bg-brand {
+  background-color: transparent;
+  background-image: var(--rainbow);
+}
+html[data-theme="rainbow"] .hover\:bg-brand-hover:hover {
+  background-color: transparent;
+  background-image: var(--rainbow);
+  filter: brightness(0.95);
+}
+html[data-theme="rainbow"] .bg-brand-soft {
+  background-image: none;
+  background-color: color-mix(in srgb, #ef4444 12%, transparent);
+}
+html[data-theme="rainbow"] .text-brand {
+  color: #ef4444;
+}
+html[data-theme="rainbow"] .ring-brand {
+  --tw-ring-color: #ef4444;
+}
+html[data-theme="rainbow"] .shadow-brand {
+  --tw-shadow-color: color-mix(in srgb, #ef4444 35%, transparent);
+}
+
+/* ETMA Bakery — fondo crema / carbón */
+html[data-theme="bakery"] .bg-brand-soft {
+  background-color: color-mix(in srgb, var(--brand) 10%, #f5f0e6);
+}
+
 body {
   margin: 0;
   min-height: 100dvh;
-  background-color: #fafaf9; /* stone-50 */
+  background-color: var(--page-bg);
 }
 
 #root {

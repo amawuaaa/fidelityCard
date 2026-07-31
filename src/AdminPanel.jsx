@@ -111,7 +111,7 @@ function AdminPanelInner({ onLogout }) {
   const cargarBandeja = useCallback(async () => {
     try {
       const mine = await fetchMyCafe();
-      applyBrandToDocument(mine.brandColor);
+      applyBrandToDocument(mine.brandColor, mine.themeStyle);
       setCafeId(mine.cafeId);
       setCafeName(mine.cafeName);
       setCafeSlug(mine.cafeSlug);

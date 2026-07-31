@@ -1,5 +1,6 @@
 import { BRAND } from "../config/brand.js";
 import { getActiveCafeSlug, setActiveCafeSlug } from "../config/cafeContext.js";
+import { getDemoCafe, resolveThemeStyle } from "../config/theme.js";
 import { isSupabaseConfigured, supabase } from "./supabase.js";
 
 function generatePublicId() {
@@ -24,18 +25,20 @@ export async function ensureCustomerSession(cafeSlug = getActiveCafeSlug()) {
   setActiveCafeSlug(cafeSlug);
 
   if (!isSupabaseConfigured) {
+    const demo = getDemoCafe(cafeSlug);
     return {
       publicId,
       customerId: null,
       cafeId: null,
       cafeSlug,
       stampsCount: 4,
-      stampsRequired: BRAND.stampsRequired,
+      stampsRequired: demo?.stampsRequired ?? BRAND.stampsRequired,
       cardsCompleted: 0,
-      cafeName: BRAND.cafeName,
-      brandColor: BRAND.color,
-      tagline: BRAND.tagline,
-      rewardLabel: BRAND.rewardLabel,
+      cafeName: demo?.name ?? BRAND.cafeName,
+      brandColor: demo?.brandColor ?? BRAND.color,
+      tagline: demo?.tagline ?? BRAND.tagline,
+      rewardLabel: demo?.rewardLabel ?? BRAND.rewardLabel,
+      themeStyle: resolveThemeStyle(cafeSlug, demo?.themeStyle),
       mode: "local",
     };
   }
@@ -51,7 +54,7 @@ export async function ensureCustomerSession(cafeSlug = getActiveCafeSlug()) {
     const { data, error } = await supabase
       .from("cafes")
       .select(
-        "id, name, slug, stamps_required, brand_color, tagline, reward_label",
+        "id, name, slug, stamps_required, brand_color, tagline, reward_label, theme_style",
       )
       .eq("slug", cafeSlug)
       .single();
@@ -66,6 +69,7 @@ export async function ensureCustomerSession(cafeSlug = getActiveCafeSlug()) {
       brand_color: cafeJson.brand_color,
       tagline: cafeJson.tagline,
       reward_label: cafeJson.reward_label,
+      theme_style: cafeJson.theme_style,
     };
   }
 
@@ -123,6 +127,10 @@ export async function ensureCustomerSession(cafeSlug = getActiveCafeSlug()) {
     brandColor: cafe.brand_color || BRAND.color,
     tagline: cafe.tagline || BRAND.tagline,
     rewardLabel: cafe.reward_label || BRAND.rewardLabel,
+    themeStyle: resolveThemeStyle(
+      cafe.slug || cafeSlug,
+      cafe.theme_style || "solid",
+    ),
     mode: "supabase",
   };
 }
@@ -138,6 +146,7 @@ export async function fetchMyCafe() {
       brandColor: BRAND.color,
       tagline: BRAND.tagline,
       rewardLabel: BRAND.rewardLabel,
+      themeStyle: "solid",
       role: "owner",
       mode: "local",
     };
@@ -156,6 +165,10 @@ export async function fetchMyCafe() {
     brandColor: data.brand_color || BRAND.color,
     tagline: data.tagline || BRAND.tagline,
     rewardLabel: data.reward_label || BRAND.rewardLabel,
+    themeStyle: resolveThemeStyle(
+      data.cafe_slug,
+      data.theme_style || "solid",
+    ),
     role: data.role,
     mode: "supabase",
   };

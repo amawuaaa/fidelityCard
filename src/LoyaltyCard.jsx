@@ -1,12 +1,15 @@
 import { useEffect, useRef, useState } from "react";
-import { Coffee, Nfc, Smile, Trophy } from "lucide-react";
+import { Coffee, Nfc, Trophy } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
 import { BRAND } from "./config/brand.js";
 import {
   buildCustomerQrValue,
   getActiveCafeSlug,
 } from "./config/cafeContext.js";
-import { applyBrandToDocument } from "./config/theme.js";
+import {
+  applyBrandToDocument,
+  stampFillStyle,
+} from "./config/theme.js";
 import {
   createNfcRequest,
   ensureCustomerSession,
@@ -15,6 +18,7 @@ import {
   subscribeNfcRequest,
 } from "./lib/loyaltyApi.js";
 import CardCompleteModal from "./components/CardCompleteModal.jsx";
+import CupLogo from "./components/CupLogo.jsx";
 import DemoCafeSwitcher from "./components/DemoCafeSwitcher.jsx";
 
 export default function LoyaltyCard() {
@@ -25,6 +29,7 @@ export default function LoyaltyCard() {
   const [cafeName, setCafeName] = useState(BRAND.cafeName);
   const [tagline, setTagline] = useState(BRAND.tagline);
   const [rewardLabel, setRewardLabel] = useState(BRAND.rewardLabel);
+  const [themeStyle, setThemeStyle] = useState("solid");
   const [cafesComprados, setCafesComprados] = useState(0);
   const [stampsRequired, setStampsRequired] = useState(BRAND.stampsRequired);
   const [cardsCompleted, setCardsCompleted] = useState(0);
@@ -47,7 +52,7 @@ export default function LoyaltyCard() {
         const session = await ensureCustomerSession(slug);
         if (cancelled) return;
 
-        applyBrandToDocument(session.brandColor);
+        applyBrandToDocument(session.brandColor, session.themeStyle);
         setUserSession(session.publicId);
         setCustomerId(session.customerId);
         setCafeId(session.cafeId);
@@ -55,6 +60,7 @@ export default function LoyaltyCard() {
         setCafeName(session.cafeName);
         setTagline(session.tagline || BRAND.tagline);
         setRewardLabel(session.rewardLabel || BRAND.rewardLabel);
+        setThemeStyle(session.themeStyle || "solid");
         setCafesComprados(session.stampsCount);
         setStampsRequired(session.stampsRequired);
         setCardsCompleted(session.cardsCompleted ?? 0);
@@ -154,21 +160,41 @@ export default function LoyaltyCard() {
   const restantes = Math.max(0, stampsRequired - cafesComprados);
   const cartonCompleto = cafesComprados >= stampsRequired;
 
+  const isLayers = cafeSlug === "layers" || themeStyle === "rainbow";
+  const isBakery = cafeSlug === "etma" || themeStyle === "bakery";
+
   return (
-    <div className="min-h-dvh bg-stone-50 text-gray-900">
+    <div className="min-h-dvh bg-[var(--page-bg)] text-gray-900">
       <div className="mx-auto flex min-h-dvh w-full max-w-md flex-col px-5 pb-8 pt-6">
         <div className="mb-4 flex items-center justify-center">
-          <span className="rounded-full bg-brand-soft px-3 py-1 text-[11px] font-extrabold uppercase tracking-wider text-brand">
+          <span className="inline-flex items-center gap-1.5 rounded-full bg-brand-soft px-3 py-1 text-[11px] font-extrabold uppercase tracking-wider text-brand">
+            <CupLogo className="size-3.5" decorative />
             {BRAND.productName}
           </span>
         </div>
 
         <header className="mb-8 text-center">
           <div className="mb-5 flex items-center justify-center gap-1.5">
-            <h1 className="text-xl font-extrabold tracking-[0.18em] text-gray-900">
-              {cafeName.toUpperCase()}
+            <h1
+              className={[
+                "font-extrabold text-gray-900",
+                isLayers
+                  ? "text-2xl tracking-[0.14em]"
+                  : "text-xl tracking-[0.18em]",
+              ].join(" ")}
+            >
+              {isLayers ? (
+                <>
+                  <span className="mr-1.5 text-sm font-bold tracking-normal text-stone-400">
+                    the
+                  </span>
+                  LAYERS
+                </>
+              ) : (
+                cafeName.toUpperCase()
+              )}
             </h1>
-            <Smile className="size-5 text-brand" strokeWidth={2.5} aria-hidden />
+            <CupLogo className="size-6 text-brand" title={cafeName} />
           </div>
 
           <h2 className="text-3xl font-bold leading-tight tracking-tight text-gray-900">
@@ -209,15 +235,27 @@ export default function LoyaltyCard() {
           >
             {Array.from({ length: stampsRequired }).map((_, index) => {
               const comprado = index < cafesComprados;
+              const rainbowFill = comprado
+                ? stampFillStyle(themeStyle, index)
+                : undefined;
 
               return (
                 <div
                   key={index}
                   className={[
                     "flex aspect-square items-center justify-center rounded-full transition duration-500",
-                    comprado ? "scale-105 bg-brand shadow-sm" : "bg-gray-100",
+                    comprado && !rainbowFill
+                      ? "scale-105 bg-brand shadow-sm"
+                      : "",
+                    comprado && rainbowFill ? "scale-105 shadow-sm" : "",
+                    !comprado
+                      ? isBakery
+                        ? "bg-[#E8E0D4]"
+                        : "bg-gray-100"
+                      : "",
                     cartonCompleto && comprado ? "animate-pulse" : "",
                   ].join(" ")}
+                  style={rainbowFill}
                 >
                   <Coffee
                     className={
