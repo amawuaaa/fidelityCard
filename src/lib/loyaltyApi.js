@@ -314,6 +314,9 @@ export function parseCustomerPublicId(raw) {
   const direct = text.match(/(usr_\d+)/i);
   if (direct) return direct[1];
 
+  const stamped = text.match(/stamp:([^\s]+)/i);
+  if (stamped) return parseCustomerPublicId(stamped[1]);
+
   try {
     const url = new URL(text);
     const fromQuery = url.searchParams.get("id") || url.searchParams.get("user");
