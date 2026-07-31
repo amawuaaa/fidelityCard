@@ -3,13 +3,10 @@
 -- Ejecuta UNA VEZ en Supabase SQL Editor (después de secure_admin.sql).
 -- =============================================================================
 --
--- Tras crear el usuario barista en Auth, vincúlalo a un café:
---
---   select public.link_staff_by_email(
---     'barista@tucafe.com',  -- email del usuario Auth
---     'cafe-demo',           -- slug del café
---     'owner'                -- 'owner' | 'barista'
---   );
+-- ORDEN CORRECTO:
+-- 1) Authentication → Users → Add user (mismo email que usarás abajo)
+-- 2) Ejecuta TODO este archivo (crea tablas + funciones)
+-- 3) Al FINAL, en una query NUEVA, ejecuta solo el link_staff (ver abajo del todo)
 --
 -- =============================================================================
 
@@ -432,7 +429,25 @@ begin
 end;
 $$;
 
--- Segundo café de ejemplo (opcional, para demo multi-café)
+-- Cafés demo (colores / reglas distintas). Para tagline + reward: demo_cafes.sql
 insert into public.cafes (name, slug, brand_color, stamps_required)
-values ('Bean & Co', 'bean-co', '#178e3c', 6)
-on conflict (slug) do nothing;
+values
+  ('Café Demo', 'cafe-demo', '#178e3c', 6),
+  ('Bean & Co', 'bean-co', '#B45309', 6),
+  ('Norte', 'norte', '#0E7490', 8)
+on conflict (slug) do update set
+  brand_color = excluded.brand_color,
+  stamps_required = excluded.stamps_required;
+
+-- =============================================================================
+-- PASO FINAL (query SEPARADA, después de que este archivo termine OK):
+-- =============================================================================
+-- select public.link_staff_by_email(
+--   'angelurquiola212@hotmail.com',
+--   'cafe-demo',
+--   'owner'
+-- );
+--
+-- Debe devolver JSON con user_id, cafe_id, role, cafe_slug.
+-- Si dice "Usuario Auth no encontrado" → crea el user en Authentication primero.
+-- =============================================================================

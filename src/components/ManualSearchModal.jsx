@@ -41,14 +41,14 @@ export default function ManualSearchModal({ open, onClose, onSearch, searching }
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               placeholder="ej. usr_12345"
-              className="w-full rounded-2xl border border-stone-200 bg-stone-50 px-4 py-3 text-base font-semibold text-gray-900 outline-none ring-[#178e3c] placeholder:text-gray-400 focus:ring-2"
+              className="w-full rounded-2xl border border-stone-200 bg-stone-50 px-4 py-3 text-base font-semibold text-gray-900 outline-none ring-brand placeholder:text-gray-400 focus:ring-2"
             />
           </label>
 
           <button
             type="submit"
             disabled={searching || !query.trim()}
-            className="flex w-full items-center justify-center gap-2 rounded-2xl bg-[#178e3c] py-4 text-base font-bold text-white shadow-sm transition hover:bg-[#136f2f] disabled:opacity-60"
+            className="flex w-full items-center justify-center gap-2 rounded-2xl bg-brand py-4 text-base font-bold text-white shadow-sm transition hover:bg-brand-hover disabled:opacity-60"
           >
             <Search className="size-5" strokeWidth={2.5} />
             {searching ? "Buscando…" : "Buscar"}

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Camera, Check, LogOut, Search, X } from "lucide-react";
 import { BRAND } from "./config/brand.js";
+import { applyBrandToDocument } from "./config/theme.js";
 import { isSupabaseConfigured } from "./lib/supabase.js";
 import {
   getAdminSession,
@@ -110,6 +111,7 @@ function AdminPanelInner({ onLogout }) {
   const cargarBandeja = useCallback(async () => {
     try {
       const mine = await fetchMyCafe();
+      applyBrandToDocument(mine.brandColor);
       setCafeId(mine.cafeId);
       setCafeName(mine.cafeName);
       setCafeSlug(mine.cafeSlug);
@@ -412,9 +414,9 @@ function AdminPanelInner({ onLogout }) {
         </div>
 
         <div className="flex shrink-0 items-center gap-3">
-          <div className="flex items-center gap-2 text-xs font-semibold text-[#178e3c] sm:text-sm">
+          <div className="flex items-center gap-2 text-xs font-semibold text-brand sm:text-sm">
             <span
-              className="size-2.5 animate-pulse rounded-full bg-[#178e3c] shadow-[0_0_8px_rgba(23,142,60,0.8)]"
+              className="size-2.5 animate-pulse rounded-full bg-brand shadow-[0_0_8px_color-mix(in_srgb,var(--brand)_80%,transparent)]"
               aria-hidden
             />
             En línea
@@ -434,7 +436,7 @@ function AdminPanelInner({ onLogout }) {
       <main className="mx-auto w-full max-w-3xl px-4 py-6 sm:px-6">
         {mensajeExito && (
           <div
-            className="mb-4 flex items-center gap-2 rounded-2xl bg-[#178e3c] px-4 py-3 text-sm font-bold text-white shadow-sm"
+            className="mb-4 flex items-center gap-2 rounded-2xl bg-brand px-4 py-3 text-sm font-bold text-white shadow-sm"
             role="status"
           >
             <Check className="size-5 shrink-0" strokeWidth={2.5} />
@@ -457,7 +459,7 @@ function AdminPanelInner({ onLogout }) {
               setError(null);
               setScannerOpen(true);
             }}
-            className="flex w-full items-center justify-center gap-3 rounded-3xl bg-[#178e3c] px-6 py-5 text-lg font-bold text-white shadow-sm transition active:scale-[0.99] hover:bg-[#136f2f]"
+            className="flex w-full items-center justify-center gap-3 rounded-3xl bg-brand px-6 py-5 text-lg font-bold text-white shadow-sm transition active:scale-[0.99] hover:bg-brand-hover"
           >
             <Camera className="size-7" strokeWidth={2.5} aria-hidden />
             Escanear QR de Cliente
@@ -539,7 +541,7 @@ function AdminPanelInner({ onLogout }) {
                       type="button"
                       disabled={busyId === peticion.id}
                       onClick={() => aprobarPunto(peticion.id)}
-                      className="flex items-center justify-center gap-2 rounded-2xl bg-[#178e3c] py-4 text-sm font-bold text-white shadow-sm transition active:scale-[0.98] hover:bg-[#136f2f] disabled:opacity-60 sm:text-base"
+                      className="flex items-center justify-center gap-2 rounded-2xl bg-brand py-4 text-sm font-bold text-white shadow-sm transition active:scale-[0.98] hover:bg-brand-hover disabled:opacity-60 sm:text-base"
                     >
                       <Check className="size-5" strokeWidth={2.5} aria-hidden />
                       Aprobar Punto
@@ -571,7 +573,7 @@ function AdminPanelInner({ onLogout }) {
 
           <a
             href="#"
-            className="mt-4 inline-block text-xs font-semibold text-gray-400 underline-offset-2 hover:text-[#178e3c] hover:underline"
+            className="mt-4 inline-block text-xs font-semibold text-gray-400 underline-offset-2 hover:text-brand hover:underline"
           >
             ← Volver a la tarjeta de cliente
           </a>

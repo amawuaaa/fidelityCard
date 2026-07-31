@@ -244,7 +244,7 @@ export default function QrScannerModal({ open, onClose, onScan }) {
           </div>
 
           {status && (
-            <p className="text-center text-sm font-semibold text-[#178e3c]">
+            <p className="text-center text-sm font-semibold text-brand">
               {status}
             </p>
           )}
@@ -272,7 +272,7 @@ export default function QrScannerModal({ open, onClose, onScan }) {
             <button
               type="button"
               onClick={() => fileRef.current?.click()}
-              className="flex items-center justify-center gap-2 rounded-2xl bg-[#178e3c] py-3 text-sm font-bold text-white"
+              className="flex items-center justify-center gap-2 rounded-2xl bg-brand py-3 text-sm font-bold text-white"
             >
               <ImagePlus className="size-4" strokeWidth={2.5} />
               Foto del QR
@@ -305,7 +305,7 @@ export default function QrScannerModal({ open, onClose, onScan }) {
                 value={manualId}
                 onChange={(e) => setManualId(e.target.value)}
                 placeholder="usr_12345"
-                className="min-w-0 flex-1 rounded-xl border border-stone-200 bg-stone-50 px-3 py-2 text-sm font-semibold outline-none focus:ring-2 focus:ring-[#178e3c]"
+                className="min-w-0 flex-1 rounded-xl border border-stone-200 bg-stone-50 px-3 py-2 text-sm font-semibold outline-none focus:ring-2 focus:ring-brand"
               />
               <button
                 type="submit"

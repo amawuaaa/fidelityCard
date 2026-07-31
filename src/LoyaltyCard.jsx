@@ -6,6 +6,7 @@ import {
   buildCustomerQrValue,
   getActiveCafeSlug,
 } from "./config/cafeContext.js";
+import { applyBrandToDocument } from "./config/theme.js";
 import {
   createNfcRequest,
   ensureCustomerSession,
@@ -14,6 +15,7 @@ import {
   subscribeNfcRequest,
 } from "./lib/loyaltyApi.js";
 import CardCompleteModal from "./components/CardCompleteModal.jsx";
+import DemoCafeSwitcher from "./components/DemoCafeSwitcher.jsx";
 
 export default function LoyaltyCard() {
   const [userSession, setUserSession] = useState(null);
@@ -21,6 +23,8 @@ export default function LoyaltyCard() {
   const [cafeId, setCafeId] = useState(null);
   const [cafeSlug, setCafeSlug] = useState(getActiveCafeSlug());
   const [cafeName, setCafeName] = useState(BRAND.cafeName);
+  const [tagline, setTagline] = useState(BRAND.tagline);
+  const [rewardLabel, setRewardLabel] = useState(BRAND.rewardLabel);
   const [cafesComprados, setCafesComprados] = useState(0);
   const [stampsRequired, setStampsRequired] = useState(BRAND.stampsRequired);
   const [cardsCompleted, setCardsCompleted] = useState(0);
@@ -43,11 +47,14 @@ export default function LoyaltyCard() {
         const session = await ensureCustomerSession(slug);
         if (cancelled) return;
 
+        applyBrandToDocument(session.brandColor);
         setUserSession(session.publicId);
         setCustomerId(session.customerId);
         setCafeId(session.cafeId);
         setCafeSlug(session.cafeSlug || slug);
         setCafeName(session.cafeName);
+        setTagline(session.tagline || BRAND.tagline);
+        setRewardLabel(session.rewardLabel || BRAND.rewardLabel);
         setCafesComprados(session.stampsCount);
         setStampsRequired(session.stampsRequired);
         setCardsCompleted(session.cardsCompleted ?? 0);
@@ -151,7 +158,7 @@ export default function LoyaltyCard() {
     <div className="min-h-dvh bg-stone-50 text-gray-900">
       <div className="mx-auto flex min-h-dvh w-full max-w-md flex-col px-5 pb-8 pt-6">
         <div className="mb-4 flex items-center justify-center">
-          <span className="rounded-full bg-[#178e3c]/10 px-3 py-1 text-[11px] font-extrabold uppercase tracking-wider text-[#178e3c]">
+          <span className="rounded-full bg-brand-soft px-3 py-1 text-[11px] font-extrabold uppercase tracking-wider text-brand">
             {BRAND.productName}
           </span>
         </div>
@@ -161,18 +168,14 @@ export default function LoyaltyCard() {
             <h1 className="text-xl font-extrabold tracking-[0.18em] text-gray-900">
               {cafeName.toUpperCase()}
             </h1>
-            <Smile
-              className="size-5 text-[#178e3c]"
-              strokeWidth={2.5}
-              aria-hidden
-            />
+            <Smile className="size-5 text-brand" strokeWidth={2.5} aria-hidden />
           </div>
 
           <h2 className="text-3xl font-bold leading-tight tracking-tight text-gray-900">
             Tu Tarjeta de Fidelidad
           </h2>
           <p className="mt-2 text-sm font-medium text-gray-500">
-            {BRAND.productTagline}: 1 café gratis cada {stampsRequired} compras
+            {tagline}: {rewardLabel} cada {stampsRequired} compras
           </p>
         </header>
 
@@ -185,7 +188,7 @@ export default function LoyaltyCard() {
         <section
           className={[
             "rounded-3xl bg-white p-6 shadow-sm transition",
-            cartonCompleto ? "ring-2 ring-[#178e3c] ring-offset-2" : "",
+            cartonCompleto ? "ring-2 ring-brand ring-offset-2" : "",
           ].join(" ")}
           aria-label="Progreso de fidelidad"
         >
@@ -193,12 +196,17 @@ export default function LoyaltyCard() {
             <p className="text-sm font-bold text-gray-900">
               {loading ? "…" : `${cafesComprados} / ${stampsRequired} cafés`}
             </p>
-            <span className="rounded-full bg-[#178e3c]/10 px-3 py-1 text-xs font-bold text-[#178e3c]">
+            <span className="rounded-full bg-brand-soft px-3 py-1 text-xs font-bold text-brand">
               {cartonCompleto ? "¡Gratis listo!" : `${restantes} para gratis`}
             </span>
           </div>
 
-          <div className="grid grid-cols-3 gap-4">
+          <div
+            className={[
+              "grid gap-4",
+              stampsRequired > 6 ? "grid-cols-4" : "grid-cols-3",
+            ].join(" ")}
+          >
             {Array.from({ length: stampsRequired }).map((_, index) => {
               const comprado = index < cafesComprados;
 
@@ -207,9 +215,7 @@ export default function LoyaltyCard() {
                   key={index}
                   className={[
                     "flex aspect-square items-center justify-center rounded-full transition duration-500",
-                    comprado
-                      ? "scale-105 bg-[#178e3c] shadow-sm"
-                      : "bg-gray-100",
+                    comprado ? "scale-105 bg-brand shadow-sm" : "bg-gray-100",
                     cartonCompleto && comprado ? "animate-pulse" : "",
                   ].join(" ")}
                 >
@@ -225,7 +231,7 @@ export default function LoyaltyCard() {
           </div>
 
           <div className="mt-5 flex items-center justify-center gap-2 rounded-2xl bg-stone-50 px-3 py-2.5 text-sm font-bold text-gray-700">
-            <Trophy className="size-4 text-[#178e3c]" strokeWidth={2.5} />
+            <Trophy className="size-4 text-brand" strokeWidth={2.5} />
             {cardsCompleted}{" "}
             {cardsCompleted === 1 ? "cartón completado" : "cartones completados"}
           </div>
@@ -234,7 +240,7 @@ export default function LoyaltyCard() {
             <button
               type="button"
               onClick={() => setShowComplete(true)}
-              className="mt-3 w-full rounded-2xl bg-[#178e3c] py-3 text-sm font-bold text-white"
+              className="mt-3 w-full rounded-2xl bg-brand py-3 text-sm font-bold text-white hover:bg-brand-hover"
             >
               Canjear / empezar cartón nuevo
             </button>
@@ -266,7 +272,7 @@ export default function LoyaltyCard() {
           </p>
 
           <div className="mt-3 inline-flex items-center gap-1.5 rounded-full bg-white px-3.5 py-1.5 text-xs font-bold text-gray-600 shadow-sm">
-            <span className="size-1.5 rounded-full bg-[#178e3c]" aria-hidden />
+            <span className="size-1.5 rounded-full bg-brand" aria-hidden />
             ID: {userSession ?? "…"}
           </div>
 
@@ -274,7 +280,7 @@ export default function LoyaltyCard() {
             type="button"
             onClick={handleNfcTap}
             disabled={loading || esperandoBarista}
-            className="mt-6 flex w-full items-center justify-center gap-2 rounded-3xl bg-[#178e3c] py-4 text-base font-bold text-white shadow-sm transition active:scale-[0.98] hover:bg-[#136f2f] disabled:cursor-not-allowed disabled:opacity-60"
+            className="mt-6 flex w-full items-center justify-center gap-2 rounded-3xl bg-brand py-4 text-base font-bold text-white shadow-sm transition active:scale-[0.98] hover:bg-brand-hover disabled:cursor-not-allowed disabled:opacity-60"
           >
             <Nfc className="size-5" strokeWidth={2.5} aria-hidden />
             Tocar para pedir punto
@@ -282,13 +288,15 @@ export default function LoyaltyCard() {
 
           {esperandoBarista && (
             <p
-              className="mt-4 animate-pulse text-center text-sm font-semibold text-[#178e3c]"
+              className="mt-4 animate-pulse text-center text-sm font-semibold text-brand"
               role="status"
             >
               Esperando confirmación del barista...
             </p>
           )}
         </section>
+
+        {BRAND.isDemo && <DemoCafeSwitcher activeSlug={cafeSlug} />}
 
         <a
           href="#admin"
@@ -301,6 +309,7 @@ export default function LoyaltyCard() {
       <CardCompleteModal
         open={showComplete}
         cardsCompleted={cardsCompleted}
+        rewardLabel={rewardLabel}
         busy={startingNew}
         onStartNew={handleStartNewCard}
         onClose={() => setShowComplete(false)}

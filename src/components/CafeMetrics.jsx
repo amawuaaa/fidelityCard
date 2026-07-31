@@ -36,7 +36,7 @@ export default function CafeMetrics({ metrics, role }) {
           {role === "owner" ? "Métricas del café" : "Resumen de hoy"}
         </h2>
         {role === "owner" && (
-          <span className="rounded-full bg-[#178e3c]/10 px-2.5 py-1 text-[10px] font-extrabold uppercase tracking-wide text-[#178e3c]">
+          <span className="rounded-full bg-brand-soft px-2.5 py-1 text-[10px] font-extrabold uppercase tracking-wide text-brand">
             Owner
           </span>
         )}

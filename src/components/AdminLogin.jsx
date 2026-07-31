@@ -39,8 +39,8 @@ export default function AdminLogin({ onSuccess }) {
   return (
     <div className="flex min-h-dvh items-center justify-center bg-stone-100 px-4">
       <div className="w-full max-w-sm rounded-3xl bg-white p-6 shadow-sm">
-        <div className="mx-auto mb-4 flex size-14 items-center justify-center rounded-full bg-[#178e3c]/10">
-          <Lock className="size-7 text-[#178e3c]" strokeWidth={2.5} />
+        <div className="mx-auto mb-4 flex size-14 items-center justify-center rounded-full bg-brand-soft">
+          <Lock className="size-7 text-brand" strokeWidth={2.5} />
         </div>
 
         <h1 className="text-center text-xl font-extrabold text-gray-900">
@@ -63,7 +63,7 @@ export default function AdminLogin({ onSuccess }) {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="barista@tucafe.com"
-                className="w-full rounded-2xl border border-stone-200 bg-stone-50 px-4 py-3 text-sm font-semibold outline-none focus:ring-2 focus:ring-[#178e3c]"
+                className="w-full rounded-2xl border border-stone-200 bg-stone-50 px-4 py-3 text-sm font-semibold outline-none focus:ring-2 focus:ring-brand"
               />
             </label>
           )}
@@ -79,7 +79,7 @@ export default function AdminLogin({ onSuccess }) {
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               placeholder={useEmailAuth ? "••••••••" : "PIN"}
-              className="w-full rounded-2xl border border-stone-200 bg-stone-50 px-4 py-3 text-sm font-semibold outline-none focus:ring-2 focus:ring-[#178e3c]"
+              className="w-full rounded-2xl border border-stone-200 bg-stone-50 px-4 py-3 text-sm font-semibold outline-none focus:ring-2 focus:ring-brand"
             />
           </label>
 
@@ -92,7 +92,7 @@ export default function AdminLogin({ onSuccess }) {
           <button
             type="submit"
             disabled={loading}
-            className="flex w-full items-center justify-center gap-2 rounded-2xl bg-[#178e3c] py-3.5 text-base font-bold text-white hover:bg-[#136f2f] disabled:opacity-60"
+            className="flex w-full items-center justify-center gap-2 rounded-2xl bg-brand py-3.5 text-base font-bold text-white hover:bg-brand-hover disabled:opacity-60"
           >
             <LogIn className="size-5" strokeWidth={2.5} />
             {loading ? "Entrando…" : "Entrar al panel"}
@@ -105,7 +105,7 @@ export default function AdminLogin({ onSuccess }) {
 
         <a
           href="#"
-          className="mt-3 block text-center text-xs font-semibold text-gray-400 hover:text-[#178e3c]"
+          className="mt-3 block text-center text-xs font-semibold text-gray-400 hover:text-brand"
         >
           ← Volver a la tarjeta
         </a>

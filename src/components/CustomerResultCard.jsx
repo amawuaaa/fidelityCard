@@ -20,7 +20,7 @@ export default function CustomerResultCard({
   );
 
   return (
-    <section className="mb-8 rounded-3xl bg-white p-5 shadow-sm ring-2 ring-[#178e3c]/20 sm:p-6">
+    <section className="mb-8 rounded-3xl bg-white p-5 shadow-sm ring-2 ring-brand-soft sm:p-6">
       <div className="mb-4 flex items-start justify-between gap-3">
         <div>
           <p className="text-xs font-bold uppercase tracking-wider text-gray-400">
@@ -68,7 +68,7 @@ export default function CustomerResultCard({
               key={index}
               className={[
                 "flex aspect-square items-center justify-center rounded-full",
-                filled ? "bg-[#178e3c]" : "bg-gray-100",
+                filled ? "bg-brand" : "bg-gray-100",
                 completo && filled ? "animate-pulse" : "",
               ].join(" ")}
             >
@@ -82,7 +82,7 @@ export default function CustomerResultCard({
       </div>
 
       <div className="mb-4 flex items-center justify-center gap-2 rounded-2xl bg-stone-50 px-3 py-2 text-sm font-bold text-gray-700">
-        <Trophy className="size-4 text-[#178e3c]" strokeWidth={2.5} />
+        <Trophy className="size-4 text-brand" strokeWidth={2.5} />
         {customer.cardsCompleted ?? 0}{" "}
         {(customer.cardsCompleted ?? 0) === 1
           ? "cartón completado"
@@ -101,13 +101,13 @@ export default function CustomerResultCard({
             onClick={onStartNewCard}
             className="flex w-full items-center justify-center gap-2 rounded-2xl bg-white py-3 text-sm font-bold text-gray-900 shadow-sm ring-1 ring-stone-200 transition hover:bg-stone-50 disabled:opacity-60"
           >
-            Solo empezar cartón nuevo (0/6)
+            Solo empezar cartón nuevo (0/{customer.stampsRequired})
           </button>
           <button
             type="button"
             disabled={busy}
             onClick={onAddStamp}
-            className="flex w-full items-center justify-center gap-2 rounded-2xl bg-[#178e3c] py-4 text-base font-bold text-white shadow-sm transition hover:bg-[#136f2f] disabled:opacity-60"
+            className="flex w-full items-center justify-center gap-2 rounded-2xl bg-brand py-4 text-base font-bold text-white shadow-sm transition hover:bg-brand-hover disabled:opacity-60"
           >
             <Check className="size-5" strokeWidth={2.5} />
             {busy ? "Procesando…" : "Canjear gratis + 1 punto nuevo"}
@@ -118,7 +118,7 @@ export default function CustomerResultCard({
           type="button"
           disabled={busy}
           onClick={onAddStamp}
-          className="flex w-full items-center justify-center gap-2 rounded-2xl bg-[#178e3c] py-4 text-base font-bold text-white shadow-sm transition hover:bg-[#136f2f] disabled:opacity-60"
+          className="flex w-full items-center justify-center gap-2 rounded-2xl bg-brand py-4 text-base font-bold text-white shadow-sm transition hover:bg-brand-hover disabled:opacity-60"
         >
           <Check className="size-5" strokeWidth={2.5} />
           {busy ? "Añadiendo…" : "Añadir 1 punto"}

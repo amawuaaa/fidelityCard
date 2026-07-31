@@ -33,6 +33,9 @@ export async function ensureCustomerSession(cafeSlug = getActiveCafeSlug()) {
       stampsRequired: BRAND.stampsRequired,
       cardsCompleted: 0,
       cafeName: BRAND.cafeName,
+      brandColor: BRAND.color,
+      tagline: BRAND.tagline,
+      rewardLabel: BRAND.rewardLabel,
       mode: "local",
     };
   }
@@ -47,7 +50,9 @@ export async function ensureCustomerSession(cafeSlug = getActiveCafeSlug()) {
     // Fallback si aún no está el RPC multi_cafe
     const { data, error } = await supabase
       .from("cafes")
-      .select("id, name, slug, stamps_required")
+      .select(
+        "id, name, slug, stamps_required, brand_color, tagline, reward_label",
+      )
       .eq("slug", cafeSlug)
       .single();
     if (error) throw error;
@@ -58,6 +63,9 @@ export async function ensureCustomerSession(cafeSlug = getActiveCafeSlug()) {
       name: cafeJson.name,
       slug: cafeJson.slug,
       stamps_required: cafeJson.stamps_required,
+      brand_color: cafeJson.brand_color,
+      tagline: cafeJson.tagline,
+      reward_label: cafeJson.reward_label,
     };
   }
 
@@ -112,6 +120,9 @@ export async function ensureCustomerSession(cafeSlug = getActiveCafeSlug()) {
     stampsRequired: cafe.stamps_required ?? BRAND.stampsRequired,
     cardsCompleted: card.cards_completed ?? 0,
     cafeName: cafe.name,
+    brandColor: cafe.brand_color || BRAND.color,
+    tagline: cafe.tagline || BRAND.tagline,
+    rewardLabel: cafe.reward_label || BRAND.rewardLabel,
     mode: "supabase",
   };
 }
@@ -124,6 +135,9 @@ export async function fetchMyCafe() {
       cafeName: BRAND.cafeName,
       cafeSlug: BRAND.cafeSlug,
       stampsRequired: BRAND.stampsRequired,
+      brandColor: BRAND.color,
+      tagline: BRAND.tagline,
+      rewardLabel: BRAND.rewardLabel,
       role: "owner",
       mode: "local",
     };
@@ -139,7 +153,9 @@ export async function fetchMyCafe() {
     cafeName: data.cafe_name,
     cafeSlug: data.cafe_slug,
     stampsRequired: data.stamps_required,
-    brandColor: data.brand_color,
+    brandColor: data.brand_color || BRAND.color,
+    tagline: data.tagline || BRAND.tagline,
+    rewardLabel: data.reward_label || BRAND.rewardLabel,
     role: data.role,
     mode: "supabase",
   };

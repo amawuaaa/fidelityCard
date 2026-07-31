@@ -1,9 +1,13 @@
 /**
  * Configuración de marca — Demo multi-cafetería
  *
- * Cambia CAFE_NAME / CAFE_SLUG para personalizar la demo
- * al mostrar la app a un dueño de café concreto.
- * El color corporativo se mantiene fijo (#178e3c).
+ * Cada café real vive en Supabase (nombre, color, sellos, tagline).
+ * Ver DEMO_CAFES en theme.js y supabase/demo_cafes.sql
+ *
+ * Cliente A → /?cafe=cafe-demo
+ * Cliente B → /?cafe=bean-co
+ * Cliente C → /?cafe=norte
+ * Staff     → /#admin
  */
 export const BRAND = {
   productName: "Stamp",
@@ -13,11 +17,8 @@ export const BRAND = {
   color: "#178e3c",
   colorHover: "#136f2f",
   stampsRequired: 6,
+  tagline: "Especialidad de barrio",
+  rewardLabel: "1 café gratis",
   storageKey: "stamp_customer_id",
   isDemo: true,
 };
-
-// Ejemplos multi-café:
-//   Cliente A → https://tu-app.vercel.app/?cafe=cafe-demo
-//   Cliente B → https://tu-app.vercel.app/?cafe=bean-co
-//   Staff     → https://tu-app.vercel.app/#admin
