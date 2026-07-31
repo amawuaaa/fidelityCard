@@ -45,18 +45,8 @@
   --tw-ring-color: var(--brand);
 }
 
-/* the Layers — botones / anillos con arcoíris */
-html[data-theme="rainbow"] .bg-brand {
-  background-color: transparent;
-  background-image: var(--rainbow);
-}
-html[data-theme="rainbow"] .hover\:bg-brand-hover:hover {
-  background-color: transparent;
-  background-image: var(--rainbow);
-  filter: brightness(0.95);
-}
+/* the Layers — acento sólido (el arcoíris va en las letras del nombre) */
 html[data-theme="rainbow"] .bg-brand-soft {
-  background-image: none;
   background-color: color-mix(in srgb, #ef4444 12%, transparent);
 }
 html[data-theme="rainbow"] .text-brand {

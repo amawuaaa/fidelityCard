@@ -20,6 +20,7 @@ import {
 import CardCompleteModal from "./components/CardCompleteModal.jsx";
 import CupLogo from "./components/CupLogo.jsx";
 import DemoCafeSwitcher from "./components/DemoCafeSwitcher.jsx";
+import LayersWordmark from "./components/LayersWordmark.jsx";
 
 export default function LoyaltyCard() {
   const [userSession, setUserSession] = useState(null);
@@ -91,7 +92,12 @@ export default function LoyaltyCard() {
       } catch (err) {
         console.error(err);
         if (!cancelled) {
-          setError("No se pudo cargar tu tarjeta. Inténtalo de nuevo.");
+          const msg = err?.message || "";
+          setError(
+            /no encontrado|Café no encontrado/i.test(msg)
+              ? `Este café (${slug}) aún no está en la base. Ejecuta supabase/demo_cafes.sql en Supabase.`
+              : msg || "No se pudo cargar tu tarjeta. Inténtalo de nuevo.",
+          );
         }
       } finally {
         if (!cancelled) setLoading(false);
@@ -175,25 +181,15 @@ export default function LoyaltyCard() {
 
         <header className="mb-8 text-center">
           <div className="mb-5 flex items-center justify-center gap-1.5">
-            <h1
-              className={[
-                "font-extrabold text-gray-900",
-                isLayers
-                  ? "text-2xl tracking-[0.14em]"
-                  : "text-xl tracking-[0.18em]",
-              ].join(" ")}
-            >
-              {isLayers ? (
-                <>
-                  <span className="mr-1.5 text-sm font-bold tracking-normal text-stone-400">
-                    the
-                  </span>
-                  LAYERS
-                </>
-              ) : (
-                cafeName.toUpperCase()
-              )}
-            </h1>
+            {isLayers ? (
+              <h1 className="text-2xl">
+                <LayersWordmark />
+              </h1>
+            ) : (
+              <h1 className="text-xl font-extrabold tracking-[0.18em] text-gray-900">
+                {cafeName.toUpperCase()}
+              </h1>
+            )}
             <CupLogo className="size-6 text-brand" title={cafeName} />
           </div>
 
