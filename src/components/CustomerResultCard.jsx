@@ -28,9 +28,14 @@ export default function CustomerResultCard({
           <p className="text-xs font-bold uppercase tracking-wider text-gray-400">
             Cliente encontrado
           </p>
-          <p className="mt-0.5 text-xl font-extrabold text-gray-900">
-            {customer.publicId}
+          <p className="mt-0.5 text-xl font-extrabold tracking-wide text-gray-900">
+            {customer.shortCode || customer.publicId}
           </p>
+          {customer.shortCode && (
+            <p className="mt-0.5 text-xs font-medium text-gray-400">
+              {customer.publicId}
+            </p>
+          )}
           <p className="mt-1 text-sm font-semibold text-gray-500">
             {customer.stampsCount} / {customer.stampsRequired} cafés
             {completo

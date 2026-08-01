@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Search, X } from "lucide-react";
 
 /**
- * Modal para buscar un cliente por ID (usr_xxxxx).
+ * Modal para buscar un cliente por código corto (4 dígitos) o usr_….
  */
 export default function ManualSearchModal({ open, onClose, onSearch, searching }) {
   const [query, setQuery] = useState("");
@@ -34,13 +34,14 @@ export default function ManualSearchModal({ open, onClose, onSearch, searching }
         <form onSubmit={submit} className="space-y-4 p-5">
           <label className="block">
             <span className="mb-2 block text-sm font-bold text-gray-700">
-              ID del cliente
+              Código del cliente
             </span>
             <input
               autoFocus
+              inputMode="numeric"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder="ej. usr_12345"
+              placeholder="ej. 4821"
               className="w-full rounded-2xl border border-stone-200 bg-stone-50 px-4 py-3 text-base font-semibold text-gray-900 outline-none ring-brand placeholder:text-gray-400 focus:ring-2"
             />
           </label>

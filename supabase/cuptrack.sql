@@ -34,6 +34,9 @@ create table if not exists public.customers (
   created_at timestamptz not null default now()
 );
 
+alter table public.customers
+  add column if not exists claim_token text;
+
 create table if not exists public.loyalty_cards (
   id uuid primary key default gen_random_uuid(),
   cafe_id uuid not null references public.cafes (id) on delete cascade,
@@ -44,7 +47,12 @@ create table if not exists public.loyalty_cards (
 );
 
 alter table public.loyalty_cards
-  add column if not exists cards_completed int not null default 0;
+  add column if not exists cards_completed int not null default 0,
+  add column if not exists short_code text;
+
+create unique index if not exists loyalty_cards_cafe_short_code_uidx
+  on public.loyalty_cards (cafe_id, short_code)
+  where short_code is not null;
 
 create table if not exists public.nfc_requests (
   id uuid primary key default gen_random_uuid(),
@@ -161,24 +169,15 @@ drop policy if exists "stamp_select_staff" on public.stamp_events;
 create policy "cafes_select" on public.cafes
   for select to anon, authenticated using (true);
 
--- Lecturas: clientes vía RPC; Realtime anon acotado; staff solo su café
+-- Lecturas: cliente solo vía RPC (polling). Staff: Realtime + SELECT de su café.
 drop policy if exists "loyalty_select_anon" on public.loyalty_cards;
 drop policy if exists "loyalty_select_staff" on public.loyalty_cards;
 drop policy if exists "nfc_select_anon_recent" on public.nfc_requests;
 drop policy if exists "nfc_select_staff" on public.nfc_requests;
 
-create policy "loyalty_select_anon" on public.loyalty_cards
-  for select to anon using (true);
-
 create policy "loyalty_select_staff" on public.loyalty_cards
   for select to authenticated
   using (public.is_staff_of_cafe(cafe_id));
-
-create policy "nfc_select_anon_recent" on public.nfc_requests
-  for select to anon using (
-    status = 'esperando'
-    or (resolved_at is not null and resolved_at > now() - interval '15 minutes')
-  );
 
 create policy "nfc_select_staff" on public.nfc_requests
   for select to authenticated
@@ -200,8 +199,8 @@ revoke all on table public.cafe_staff from anon, authenticated;
 
 grant usage on schema public to anon, authenticated;
 grant select on table public.cafes to anon, authenticated;
-grant select on table public.loyalty_cards to anon, authenticated;
-grant select on table public.nfc_requests to anon, authenticated;
+grant select on table public.loyalty_cards to authenticated;
+grant select on table public.nfc_requests to authenticated;
 grant select on table public.stamp_events to authenticated;
 grant select on table public.cafe_staff to authenticated;
 
@@ -217,6 +216,83 @@ as $$
   select p_public_id is not null
     and p_public_id ~ '^usr_[a-zA-Z0-9]{5,40}$';
 $$;
+
+create or replace function public.is_valid_short_code(p_code text)
+returns boolean
+language sql
+immutable
+as $$
+  select p_code is not null and p_code ~ '^[0-9]{4,5}$';
+$$;
+
+create or replace function public.allocate_short_code(p_cafe_id uuid)
+returns text
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_code text;
+  v_try int := 0;
+begin
+  loop
+    v_try := v_try + 1;
+    if v_try <= 30 then
+      v_code := lpad((floor(random() * 10000))::int::text, 4, '0');
+    else
+      v_code := lpad((floor(random() * 100000))::int::text, 5, '0');
+    end if;
+
+    exit when not exists (
+      select 1 from public.loyalty_cards
+      where cafe_id = p_cafe_id and short_code = v_code
+    );
+
+    if v_try > 80 then
+      raise exception 'No se pudo asignar código corto';
+    end if;
+  end loop;
+
+  return v_code;
+end;
+$$;
+
+create or replace function public.resolve_customer_in_cafe(
+  p_cafe_id uuid,
+  p_code text
+)
+returns public.customers
+language plpgsql
+security definer
+stable
+set search_path = public
+as $$
+declare
+  v_customer public.customers%rowtype;
+  v_raw text := trim(coalesce(p_code, ''));
+begin
+  if public.is_valid_public_id(v_raw) then
+    select * into v_customer from public.customers where public_id = v_raw;
+    if not found then raise exception 'Cliente no encontrado'; end if;
+    return v_customer;
+  end if;
+
+  if public.is_valid_short_code(v_raw) then
+    select c.* into v_customer
+    from public.customers c
+    join public.loyalty_cards lc on lc.customer_id = c.id
+    where lc.cafe_id = p_cafe_id and lc.short_code = v_raw
+    limit 1;
+    if not found then raise exception 'Cliente no encontrado'; end if;
+    return v_customer;
+  end if;
+
+  raise exception 'ID de cliente no válido';
+end;
+$$;
+
+revoke all on function public.allocate_short_code(uuid) from public, anon, authenticated;
+revoke all on function public.resolve_customer_in_cafe(uuid, text) from public, anon, authenticated;
 
 -- ——— RPCs públicos (cliente) ———
 create or replace function public.get_cafe_by_slug(p_slug text)
@@ -268,8 +344,13 @@ begin
 
   select * into v_customer from public.customers where public_id = p_public_id;
   if not found then
-    insert into public.customers (public_id)
-    values (p_public_id)
+    insert into public.customers (public_id, claim_token)
+    values (p_public_id, encode(gen_random_bytes(8), 'hex'))
+    returning * into v_customer;
+  elsif v_customer.claim_token is null then
+    update public.customers
+    set claim_token = encode(gen_random_bytes(8), 'hex')
+    where id = v_customer.id
     returning * into v_customer;
   end if;
 
@@ -279,14 +360,23 @@ begin
 
   if not found then
     insert into public.loyalty_cards (
-      cafe_id, customer_id, stamps_count, cards_completed
+      cafe_id, customer_id, stamps_count, cards_completed, short_code
     )
-    values (v_cafe.id, v_customer.id, 0, 0)
+    values (
+      v_cafe.id, v_customer.id, 0, 0, public.allocate_short_code(v_cafe.id)
+    )
+    returning * into v_card;
+  elsif v_card.short_code is null then
+    update public.loyalty_cards
+    set short_code = public.allocate_short_code(v_cafe.id)
+    where id = v_card.id
     returning * into v_card;
   end if;
 
   return json_build_object(
     'public_id', v_customer.public_id,
+    'claim_token', v_customer.claim_token,
+    'short_code', v_card.short_code,
     'customer_id', v_customer.id,
     'cafe_id', v_cafe.id,
     'cafe_slug', v_cafe.slug,
@@ -364,9 +454,12 @@ exception
 end;
 $$;
 
+drop function if exists public.start_new_card(text, text);
+
 create or replace function public.start_new_card(
   p_cafe_slug text,
-  p_public_id text
+  p_public_id text,
+  p_claim_token text default null
 )
 returns json
 language plpgsql
@@ -377,16 +470,40 @@ declare
   v_cafe public.cafes%rowtype;
   v_customer public.customers%rowtype;
   v_card public.loyalty_cards%rowtype;
+  v_staff_cafe_id uuid;
+  v_is_staff boolean := false;
 begin
   if not public.is_valid_public_id(p_public_id) then
     raise exception 'ID de cliente no válido';
   end if;
 
-  select * into v_cafe from public.cafes where slug = p_cafe_slug;
-  if not found then raise exception 'Café no encontrado'; end if;
+  select s.cafe_id into v_staff_cafe_id
+  from public.cafe_staff s
+  where s.user_id = auth.uid()
+  order by s.created_at asc
+  limit 1;
+
+  if v_staff_cafe_id is not null then
+    v_is_staff := true;
+    select * into v_cafe from public.cafes where id = v_staff_cafe_id;
+    if p_cafe_slug is not null and p_cafe_slug <> '' and p_cafe_slug <> v_cafe.slug then
+      raise exception 'No puedes operar sobre otro café.';
+    end if;
+  else
+    select * into v_cafe from public.cafes where slug = p_cafe_slug;
+    if not found then raise exception 'Café no encontrado'; end if;
+  end if;
 
   select * into v_customer from public.customers where public_id = p_public_id;
   if not found then raise exception 'Cliente no encontrado'; end if;
+
+  if not v_is_staff then
+    if p_claim_token is null
+      or v_customer.claim_token is null
+      or p_claim_token <> v_customer.claim_token then
+      raise exception 'No autorizado para reiniciar este cartón.';
+    end if;
+  end if;
 
   select * into v_card
   from public.loyalty_cards
@@ -398,6 +515,7 @@ begin
   if v_card.stamps_count = 0 then
     return json_build_object(
       'public_id', v_customer.public_id,
+      'short_code', v_card.short_code,
       'stamps_count', 0,
       'stamps_required', v_cafe.stamps_required,
       'cards_completed', v_card.cards_completed,
@@ -420,11 +538,85 @@ begin
 
   return json_build_object(
     'public_id', v_customer.public_id,
+    'short_code', v_card.short_code,
     'stamps_count', 0,
     'stamps_required', v_cafe.stamps_required,
     'cards_completed', v_card.cards_completed,
     'card_completed', false,
     'already_reset', false
+  );
+end;
+$$;
+
+create or replace function public.get_card_snapshot(
+  p_cafe_slug text,
+  p_public_id text
+)
+returns json
+language plpgsql
+security definer
+stable
+set search_path = public
+as $$
+declare
+  v_cafe public.cafes%rowtype;
+  v_customer public.customers%rowtype;
+  v_card public.loyalty_cards%rowtype;
+begin
+  if not public.is_valid_public_id(p_public_id) then
+    raise exception 'ID de cliente no válido';
+  end if;
+
+  select * into v_cafe from public.cafes where slug = p_cafe_slug;
+  if not found then raise exception 'Café no encontrado'; end if;
+
+  select * into v_customer from public.customers where public_id = p_public_id;
+  if not found then raise exception 'Cliente no encontrado'; end if;
+
+  select * into v_card
+  from public.loyalty_cards
+  where cafe_id = v_cafe.id and customer_id = v_customer.id;
+  if not found then raise exception 'Tarjeta no encontrada'; end if;
+
+  return json_build_object(
+    'public_id', v_customer.public_id,
+    'short_code', v_card.short_code,
+    'customer_id', v_customer.id,
+    'cafe_id', v_cafe.id,
+    'stamps_count', v_card.stamps_count,
+    'stamps_required', v_cafe.stamps_required,
+    'cards_completed', coalesce(v_card.cards_completed, 0)
+  );
+end;
+$$;
+
+create or replace function public.get_nfc_request_status(
+  p_request_id uuid,
+  p_public_id text
+)
+returns json
+language plpgsql
+security definer
+stable
+set search_path = public
+as $$
+declare
+  v_req public.nfc_requests%rowtype;
+begin
+  if not public.is_valid_public_id(p_public_id) then
+    raise exception 'ID de cliente no válido';
+  end if;
+
+  select * into v_req
+  from public.nfc_requests
+  where id = p_request_id and public_id = p_public_id;
+
+  if not found then raise exception 'Petición no encontrada'; end if;
+
+  return json_build_object(
+    'id', v_req.id,
+    'status', v_req.status,
+    'resolved_at', v_req.resolved_at
   );
 end;
 $$;
@@ -591,9 +783,7 @@ begin
   end if;
 
   select * into v_cafe from public.cafes where id = v_staff_cafe_id;
-
-  select * into v_customer from public.customers where public_id = p_public_id;
-  if not found then raise exception 'Cliente no encontrado'; end if;
+  v_customer := public.resolve_customer_in_cafe(v_cafe.id, p_public_id);
 
   select * into v_card
   from public.loyalty_cards
@@ -601,6 +791,7 @@ begin
 
   return json_build_object(
     'public_id', v_customer.public_id,
+    'short_code', v_card.short_code,
     'customer_id', v_customer.id,
     'cafe_id', v_cafe.id,
     'cafe_name', v_cafe.name,
@@ -647,8 +838,7 @@ begin
     raise exception 'No puedes operar sobre otro café.';
   end if;
 
-  select * into v_customer from public.customers where public_id = p_public_id;
-  if not found then raise exception 'Cliente no encontrado'; end if;
+  v_customer := public.resolve_customer_in_cafe(v_cafe.id, p_public_id);
 
   select * into v_card
   from public.loyalty_cards
@@ -656,8 +846,12 @@ begin
   for update;
 
   if not found then
-    insert into public.loyalty_cards (cafe_id, customer_id, stamps_count, cards_completed)
-    values (v_cafe.id, v_customer.id, 0, 0)
+    insert into public.loyalty_cards (
+      cafe_id, customer_id, stamps_count, cards_completed, short_code
+    )
+    values (
+      v_cafe.id, v_customer.id, 0, 0, public.allocate_short_code(v_cafe.id)
+    )
     returning * into v_card;
   end if;
 
@@ -686,6 +880,7 @@ begin
 
   return json_build_object(
     'public_id', v_customer.public_id,
+    'short_code', v_card.short_code,
     'stamps_count', v_new_count,
     'stamps_required', v_cafe.stamps_required,
     'cards_completed', v_cards,
@@ -724,8 +919,13 @@ begin
   for update;
 
   if not found then
-    insert into public.loyalty_cards (cafe_id, customer_id, stamps_count, cards_completed)
-    values (v_req.cafe_id, v_req.customer_id, 0, 0)
+    insert into public.loyalty_cards (
+      cafe_id, customer_id, stamps_count, cards_completed, short_code
+    )
+    values (
+      v_req.cafe_id, v_req.customer_id, 0, 0,
+      public.allocate_short_code(v_req.cafe_id)
+    )
     returning * into v_card;
   end if;
 
@@ -758,6 +958,7 @@ begin
 
   return json_build_object(
     'public_id', v_req.public_id,
+    'short_code', v_card.short_code,
     'stamps_count', v_new_count,
     'stamps_required', v_required,
     'cards_completed', v_cards,
@@ -831,8 +1032,7 @@ begin
     raise exception 'No puedes operar sobre otro café.';
   end if;
 
-  select * into v_customer from public.customers where public_id = p_public_id;
-  if not found then raise exception 'Cliente no encontrado'; end if;
+  v_customer := public.resolve_customer_in_cafe(v_cafe.id, p_public_id);
 
   select * into v_card
   from public.loyalty_cards
@@ -869,6 +1069,7 @@ begin
 
   return json_build_object(
     'public_id', v_customer.public_id,
+    'short_code', v_card.short_code,
     'stamps_count', v_card.stamps_count,
     'stamps_required', v_cafe.stamps_required,
     'cards_completed', v_card.cards_completed,
@@ -924,11 +1125,14 @@ revoke all on function public.get_cafe_metrics() from public, anon, authenticate
 revoke all on function public.get_customer_card(text) from public, anon, authenticated;
 
 grant execute on function public.is_valid_public_id(text) to anon, authenticated;
+grant execute on function public.is_valid_short_code(text) to anon, authenticated;
 grant execute on function public.get_cafe_by_slug(text) to anon, authenticated;
 grant execute on function public.ensure_customer_session(text, text) to anon, authenticated;
+grant execute on function public.get_card_snapshot(text, text) to anon, authenticated;
+grant execute on function public.get_nfc_request_status(uuid, text) to anon, authenticated;
 grant execute on function public.create_nfc_request(text, text) to anon, authenticated;
 grant execute on function public.cancel_nfc_request(uuid, text) to anon, authenticated;
-grant execute on function public.start_new_card(text, text) to anon, authenticated;
+grant execute on function public.start_new_card(text, text, text) to anon, authenticated;
 
 grant execute on function public.link_staff_by_email(text, text, text) to postgres, service_role;
 grant execute on function public.require_barista() to authenticated;

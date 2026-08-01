@@ -3,9 +3,10 @@ import { getActiveCafeSlug, setActiveCafeSlug } from "../config/cafeContext.js";
 import { getDemoCafe, resolveThemeStyle } from "../config/theme.js";
 import { isSupabaseConfigured, supabase } from "./supabase.js";
 
+const CLAIM_STORAGE_KEY = `${BRAND.storageKey}_claim`;
+
 /**
- * ID: usr_ + 7 dígitos (crypto). Corto para decir en caja, ~10M combinaciones.
- * Compatible con SQL (^usr_[0-9]+) y con IDs antiguos de 5 dígitos.
+ * ID interno: usr_ + 7 dígitos. En caja se usa short_code (4 dígitos por café).
  */
 function generatePublicId() {
   const bytes = new Uint8Array(7);
@@ -24,13 +25,25 @@ function getOrCreateLocalPublicId({ forceNew = false } = {}) {
   if (!isValidPublicId(publicId)) {
     publicId = generatePublicId();
     localStorage.setItem(BRAND.storageKey, publicId);
+    localStorage.removeItem(CLAIM_STORAGE_KEY);
   }
   return publicId;
 }
 
+function storeClaimToken(token) {
+  if (token) localStorage.setItem(CLAIM_STORAGE_KEY, token);
+}
+
+export function getStoredClaimToken() {
+  return localStorage.getItem(CLAIM_STORAGE_KEY);
+}
+
 function mapSession(data, cafeSlug) {
+  if (data.claim_token) storeClaimToken(data.claim_token);
   return {
     publicId: data.public_id,
+    shortCode: data.short_code || null,
+    claimToken: data.claim_token || getStoredClaimToken(),
     customerId: data.customer_id,
     cafeId: data.cafe_id,
     cafeSlug: data.cafe_slug || cafeSlug,
@@ -189,32 +202,98 @@ export async function cancelNfcRequest({ requestId, publicId }) {
   return { ...data, mode: "supabase" };
 }
 
-/** Escucha cambios de una petición NFC (aprobada / rechazada). */
-export function subscribeNfcRequest(requestId, onUpdate) {
+/** Estado de una petición NFC (solo si pertenece a ese public_id). */
+export async function fetchNfcRequestStatus(requestId, publicId) {
+  if (!isSupabaseConfigured || !requestId || String(requestId).startsWith("local-")) {
+    return null;
+  }
+
+  const { data, error } = await supabase.rpc("get_nfc_request_status", {
+    p_request_id: requestId,
+    p_public_id: publicId,
+  });
+  if (error) throw error;
+  return data;
+}
+
+/**
+ * Polling del estado NFC del cliente (sustituye Realtime anon).
+ * Devuelve función cleanup.
+ */
+export function pollNfcRequest(requestId, publicId, onUpdate, intervalMs = 2000) {
   if (!isSupabaseConfigured || !requestId || String(requestId).startsWith("local-")) {
     return () => {};
   }
 
-  const channel = supabase
-    .channel(`nfc-request-${requestId}`)
-    .on(
-      "postgres_changes",
-      {
-        event: "UPDATE",
-        schema: "public",
-        table: "nfc_requests",
-        filter: `id=eq.${requestId}`,
-      },
-      (payload) => onUpdate(payload.new),
-    )
-    .subscribe();
+  let stopped = false;
+  const tick = async () => {
+    if (stopped) return;
+    try {
+      const status = await fetchNfcRequestStatus(requestId, publicId);
+      if (!stopped && status) onUpdate(status);
+    } catch (err) {
+      console.error(err);
+    }
+  };
 
+  tick();
+  const timer = window.setInterval(tick, intervalMs);
   return () => {
-    supabase.removeChannel(channel);
+    stopped = true;
+    window.clearInterval(timer);
   };
 }
 
-/** Escucha cambios en la tarjeta (sellos) del cliente. */
+/** Snapshot de la tarjeta del cliente (polling seguro). */
+export async function fetchCardSnapshot(cafeSlug, publicId) {
+  if (!isSupabaseConfigured) {
+    return null;
+  }
+
+  const { data, error } = await supabase.rpc("get_card_snapshot", {
+    p_cafe_slug: cafeSlug,
+    p_public_id: publicId,
+  });
+  if (error) throw error;
+  return {
+    publicId: data.public_id,
+    shortCode: data.short_code,
+    customerId: data.customer_id,
+    cafeId: data.cafe_id,
+    stampsCount: data.stamps_count ?? 0,
+    stampsRequired: data.stamps_required,
+    cardsCompleted: data.cards_completed ?? 0,
+  };
+}
+
+/**
+ * Polling de sellos del cliente (sustituye Realtime anon sobre loyalty_cards).
+ */
+export function pollLoyaltyCard({ cafeSlug, publicId }, onUpdate, intervalMs = 2500) {
+  if (!isSupabaseConfigured || !cafeSlug || !publicId) {
+    return () => {};
+  }
+
+  let stopped = false;
+  const tick = async () => {
+    if (stopped) return;
+    try {
+      const snap = await fetchCardSnapshot(cafeSlug, publicId);
+      if (!stopped && snap) onUpdate(snap);
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  tick();
+  const timer = window.setInterval(tick, intervalMs);
+  return () => {
+    stopped = true;
+    window.clearInterval(timer);
+  };
+}
+
+/** Realtime de tarjeta para staff autenticado (RLS por café). */
 export function subscribeLoyaltyCard({ cafeId, customerId }, onUpdate) {
   if (!isSupabaseConfigured || !cafeId || !customerId) {
     return () => {};
@@ -391,12 +470,14 @@ export async function fetchTodayApprovals(cafeId) {
 }
 
 /**
- * Extrae un public_id limpio desde texto escaneado o pegado.
- * Acepta: "usr_12345", "stamp:usr_12345", URLs con ?id=, etc.
+ * Extrae código de cliente desde texto escaneado o pegado.
+ * Acepta: código corto 4–5 dígitos, "usr_12345", URLs con ?u=, etc.
  */
 export function parseCustomerPublicId(raw) {
   if (!raw) return null;
   const text = String(raw).trim().replace(/^["']|["']$/g, "");
+
+  if (/^[0-9]{4,5}$/.test(text)) return text;
 
   const direct = text.match(/(usr_[0-9]{5,12})/i);
   if (direct) return direct[1];
@@ -409,7 +490,8 @@ export function parseCustomerPublicId(raw) {
     const fromQuery =
       url.searchParams.get("u") ||
       url.searchParams.get("user") ||
-      url.searchParams.get("id");
+      url.searchParams.get("id") ||
+      url.searchParams.get("code");
     if (fromQuery) return parseCustomerPublicId(fromQuery);
     const pathMatch = url.pathname.match(/(usr_[0-9]{5,12})/i);
     if (pathMatch) return pathMatch[1];
@@ -421,19 +503,20 @@ export function parseCustomerPublicId(raw) {
   return null;
 }
 
-/** Busca un cliente y su tarjeta en un café. */
+/** Busca un cliente y su tarjeta en un café (usr_… o código corto). */
 export async function findCustomerByPublicId(
   publicId,
   cafeSlug = getActiveCafeSlug(),
 ) {
   const cleanId = parseCustomerPublicId(publicId);
   if (!cleanId) {
-    throw new Error("ID de cliente no válido. Usa el formato usr_12345.");
+    throw new Error("Código no válido. Usa 4 dígitos (ej. 4821) o usr_…");
   }
 
   if (!isSupabaseConfigured) {
     return {
-      publicId: cleanId,
+      publicId: cleanId.startsWith("usr_") ? cleanId : `usr_${cleanId}`,
+      shortCode: /^[0-9]{4,5}$/.test(cleanId) ? cleanId : "4821",
       stampsCount: 3,
       stampsRequired: BRAND.stampsRequired,
       cardsCompleted: 1,
@@ -455,6 +538,7 @@ export async function findCustomerByPublicId(
 
   return {
     publicId: data.public_id,
+    shortCode: data.short_code || null,
     customerId: data.customer_id,
     cafeId: data.cafe_id,
     stampsCount: data.stamps_count ?? 0,
@@ -525,10 +609,14 @@ export async function removeStampByPublicId(
   return { ...data, mode: "supabase" };
 }
 
-/** Reinicia sellos a 0 tras completar un cartón (mantiene cards_completed). */
+/**
+ * Reinicia sellos a 0 tras completar un cartón.
+ * Cliente: necesita claim_token del móvil. Staff autenticado: no lo necesita.
+ */
 export async function startNewCard(
   publicId,
   cafeSlug = getActiveCafeSlug(),
+  claimToken = getStoredClaimToken(),
 ) {
   const cleanId = parseCustomerPublicId(publicId);
   if (!cleanId) {
@@ -548,6 +636,7 @@ export async function startNewCard(
   const { data, error } = await supabase.rpc("start_new_card", {
     p_cafe_slug: cafeSlug,
     p_public_id: cleanId,
+    p_claim_token: claimToken || null,
   });
 
   if (error) throw error;

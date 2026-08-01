@@ -14,9 +14,9 @@ import {
   cancelNfcRequest,
   createNfcRequest,
   ensureCustomerSession,
+  pollLoyaltyCard,
+  pollNfcRequest,
   startNewCard,
-  subscribeLoyaltyCard,
-  subscribeNfcRequest,
 } from "./lib/loyaltyApi.js";
 import CardCompleteModal from "./components/CardCompleteModal.jsx";
 import CupLogo from "./components/CupLogo.jsx";
@@ -28,8 +28,7 @@ const NFC_TIMEOUT_MS = 90_000;
 
 export default function LoyaltyCard() {
   const [userSession, setUserSession] = useState(null);
-  const [customerId, setCustomerId] = useState(null);
-  const [cafeId, setCafeId] = useState(null);
+  const [shortCode, setShortCode] = useState(null);
   const [cafeSlug, setCafeSlug] = useState(getActiveCafeSlug());
   const [cafeName, setCafeName] = useState(BRAND.cafeName);
   const [tagline, setTagline] = useState(BRAND.tagline);
@@ -45,7 +44,7 @@ export default function LoyaltyCard() {
   const [showComplete, setShowComplete] = useState(false);
   const [startingNew, setStartingNew] = useState(false);
   const [qrValue, setQrValue] = useState("");
-  const unsubRequestRef = useRef(null);
+  const stopPollRequestRef = useRef(null);
   const nfcTimeoutRef = useRef(null);
   const pendingRequestIdRef = useRef(null);
   const prevStampsRef = useRef(0);
@@ -55,9 +54,9 @@ export default function LoyaltyCard() {
       window.clearTimeout(nfcTimeoutRef.current);
       nfcTimeoutRef.current = null;
     }
-    if (unsubRequestRef.current) {
-      unsubRequestRef.current();
-      unsubRequestRef.current = null;
+    if (stopPollRequestRef.current) {
+      stopPollRequestRef.current();
+      stopPollRequestRef.current = null;
     }
     pendingRequestIdRef.current = null;
     setEsperandoBarista(false);
@@ -65,7 +64,7 @@ export default function LoyaltyCard() {
 
   useEffect(() => {
     let cancelled = false;
-    let unsubCard = () => {};
+    let stopCardPoll = () => {};
     const slug = getActiveCafeSlug();
 
     (async () => {
@@ -75,8 +74,7 @@ export default function LoyaltyCard() {
 
         applyBrandToDocument(session.brandColor, session.themeStyle);
         setUserSession(session.publicId);
-        setCustomerId(session.customerId);
-        setCafeId(session.cafeId);
+        setShortCode(session.shortCode || null);
         setCafeSlug(session.cafeSlug || slug);
         setCafeName(session.cafeName);
         setTagline(session.tagline || BRAND.tagline);
@@ -94,14 +92,18 @@ export default function LoyaltyCard() {
           setShowComplete(true);
         }
 
-        unsubCard = subscribeLoyaltyCard(
-          { cafeId: session.cafeId, customerId: session.customerId },
+        const required = session.stampsRequired;
+        stopCardPoll = pollLoyaltyCard(
+          {
+            cafeSlug: session.cafeSlug || slug,
+            publicId: session.publicId,
+          },
           (card) => {
-            const next = card.stamps_count;
-            const required = session.stampsRequired;
+            const next = card.stampsCount;
             setCafesComprados(next);
-            if (typeof card.cards_completed === "number") {
-              setCardsCompleted(card.cards_completed);
+            if (card.shortCode) setShortCode(card.shortCode);
+            if (typeof card.cardsCompleted === "number") {
+              setCardsCompleted(card.cardsCompleted);
             }
             if (next >= required && prevStampsRef.current < required) {
               setShowComplete(true);
@@ -126,8 +128,8 @@ export default function LoyaltyCard() {
 
     return () => {
       cancelled = true;
-      unsubCard();
-      if (unsubRequestRef.current) unsubRequestRef.current();
+      stopCardPoll();
+      if (stopPollRequestRef.current) stopPollRequestRef.current();
       if (nfcTimeoutRef.current) window.clearTimeout(nfcTimeoutRef.current);
     };
   }, []);
@@ -191,12 +193,16 @@ export default function LoyaltyCard() {
         return;
       }
 
-      if (unsubRequestRef.current) unsubRequestRef.current();
-      unsubRequestRef.current = subscribeNfcRequest(request.id, (updated) => {
-        if (updated.status === "aprobado" || updated.status === "rechazado") {
-          clearNfcWait();
-        }
-      });
+      if (stopPollRequestRef.current) stopPollRequestRef.current();
+      stopPollRequestRef.current = pollNfcRequest(
+        request.id,
+        userSession,
+        (updated) => {
+          if (updated.status === "aprobado" || updated.status === "rechazado") {
+            clearNfcWait();
+          }
+        },
+      );
 
       armTimeout();
     } catch (err) {
@@ -332,6 +338,20 @@ export default function LoyaltyCard() {
             {cardsCompleted}{" "}
             {cardsCompleted === 1 ? "cartón completado" : "cartones completados"}
           </div>
+
+          {shortCode && (
+            <div className="mt-3 rounded-2xl bg-brand-soft px-3 py-3 text-center">
+              <p className="text-[11px] font-bold uppercase tracking-wider text-brand">
+                Código para la caja
+              </p>
+              <p className="mt-0.5 text-3xl font-extrabold tracking-[0.2em] text-gray-900">
+                {shortCode}
+              </p>
+              <p className="mt-1 text-xs font-medium text-gray-500">
+                Si no escanean el QR, diles este número
+              </p>
+            </div>
+          )}
 
           {cartonCompleto && (
             <button

@@ -304,7 +304,7 @@ export default function QrScannerModal({ open, onClose, onScan }) {
               <input
                 value={manualId}
                 onChange={(e) => setManualId(e.target.value)}
-                placeholder="usr_12345"
+                placeholder="4821"
                 className="min-w-0 flex-1 rounded-xl border border-stone-200 bg-stone-50 px-3 py-2 text-sm font-semibold outline-none focus:ring-2 focus:ring-brand"
               />
               <button
