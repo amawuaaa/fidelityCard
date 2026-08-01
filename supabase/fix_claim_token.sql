@@ -1,10 +1,5 @@
--- =============================================================================
--- Fix: gen_random_bytes does not exist (PWA / ensure_customer_session)
--- Ejecuta esto YA en Supabase SQL Editor.
--- =============================================================================
--- Causa: claim_token usaba pgcrypto.gen_random_bytes, que a veces no está
--- disponible. Pasamos a gen_random_uuid() (siempre en Postgres/Supabase).
--- =============================================================================
+/* Fix claim_token: evita gen_random_bytes (error en PWA iPhone).
+   Pegar TODO esto en Supabase SQL Editor y Run. */
 
 create or replace function public.new_claim_token()
 returns text
@@ -93,7 +88,6 @@ $$;
 
 grant execute on function public.ensure_customer_session(text, text) to anon, authenticated;
 
--- Backfill tokens rotos / nulos sin gen_random_bytes
 update public.customers
 set claim_token = public.new_claim_token()
 where claim_token is null;
