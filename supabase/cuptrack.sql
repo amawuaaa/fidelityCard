@@ -878,6 +878,38 @@ begin
 end;
 $$;
 
+create or replace function public.cancel_nfc_request(
+  p_request_id uuid,
+  p_public_id text
+)
+returns json
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_updated int;
+begin
+  if p_public_id is null or p_public_id !~ '^usr_[0-9a-zA-Z]{5,40}$' then
+    raise exception 'ID de cliente no válido';
+  end if;
+
+  update public.nfc_requests
+  set status = 'rechazado',
+      resolved_at = now()
+  where id = p_request_id
+    and public_id = p_public_id
+    and status = 'esperando';
+
+  get diagnostics v_updated = row_count;
+  if v_updated = 0 then
+    raise exception 'Petición no encontrada o ya resuelta';
+  end if;
+
+  return json_build_object('ok', true, 'cancelled', true);
+end;
+$$;
+
 -- ——— Grants RPC ———
 revoke all on function public.link_staff_by_email(text, text, text) from public, anon, authenticated;
 revoke all on function public.require_barista() from public, anon, authenticated;
@@ -886,6 +918,7 @@ revoke all on function public.add_stamp_by_public_id(text, text) from public, an
 revoke all on function public.remove_stamp_by_public_id(text, text) from public, anon, authenticated;
 revoke all on function public.approve_nfc_stamp(uuid) from public, anon, authenticated;
 revoke all on function public.reject_nfc_stamp(uuid) from public, anon, authenticated;
+revoke all on function public.cancel_nfc_request(uuid, text) from public, anon, authenticated;
 revoke all on function public.get_my_cafe() from public, anon, authenticated;
 revoke all on function public.get_cafe_metrics() from public, anon, authenticated;
 revoke all on function public.get_customer_card(text) from public, anon, authenticated;
@@ -894,6 +927,7 @@ grant execute on function public.is_valid_public_id(text) to anon, authenticated
 grant execute on function public.get_cafe_by_slug(text) to anon, authenticated;
 grant execute on function public.ensure_customer_session(text, text) to anon, authenticated;
 grant execute on function public.create_nfc_request(text, text) to anon, authenticated;
+grant execute on function public.cancel_nfc_request(uuid, text) to anon, authenticated;
 grant execute on function public.start_new_card(text, text) to anon, authenticated;
 
 grant execute on function public.link_staff_by_email(text, text, text) to postgres, service_role;

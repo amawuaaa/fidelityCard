@@ -167,7 +167,26 @@ export async function createNfcRequest({
   });
 
   if (error) throw error;
-  return { id: data.id, mode: "supabase" };
+  return { id: data.id, reused: Boolean(data.reused), mode: "supabase" };
+}
+
+/** Cancela una petición NFC pendiente (el propio cliente). */
+export async function cancelNfcRequest({ requestId, publicId }) {
+  if (!isSupabaseConfigured) {
+    return { mode: "local", ok: true };
+  }
+
+  if (!requestId || String(requestId).startsWith("local-")) {
+    return { mode: "local", ok: true };
+  }
+
+  const { data, error } = await supabase.rpc("cancel_nfc_request", {
+    p_request_id: requestId,
+    p_public_id: publicId,
+  });
+
+  if (error) throw error;
+  return { ...data, mode: "supabase" };
 }
 
 /** Escucha cambios de una petición NFC (aprobada / rechazada). */

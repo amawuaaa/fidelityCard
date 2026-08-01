@@ -30,9 +30,11 @@ En Vercel → Settings → Environment Variables: las mismas claves.
 
 **Proyecto nuevo:** ejecuta todo [`supabase/cuptrack.sql`](supabase/cuptrack.sql).
 
-**Proyecto que ya tenía `cuptrack.sql`:** ejecuta además  
-[`supabase/hardening_v2.sql`](supabase/hardening_v2.sql)  
-(IDs largos, anti-spam NFC, RLS lecturas, cooldown `start_new_card`).
+**Proyecto que ya tenía `cuptrack.sql`:** ejecuta además (en orden):
+
+1. [`supabase/hardening_v2.sql`](supabase/hardening_v2.sql) — anti-spam NFC, RLS  
+2. [`supabase/cancel_nfc.sql`](supabase/cancel_nfc.sql) — cancelar petición desde el cliente  
+3. [`supabase/remove_stamp.sql`](supabase/remove_stamp.sql) — si aún no lo tienes
 
 > No re-ejecutes scripts LEGACY (`schema.sql`, `secure_admin.sql`, etc.).
 

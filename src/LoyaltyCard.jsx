@@ -11,6 +11,7 @@ import {
   stampFillStyle,
 } from "./config/theme.js";
 import {
+  cancelNfcRequest,
   createNfcRequest,
   ensureCustomerSession,
   startNewCard,
@@ -20,7 +21,10 @@ import {
 import CardCompleteModal from "./components/CardCompleteModal.jsx";
 import CupLogo from "./components/CupLogo.jsx";
 import DemoCafeSwitcher from "./components/DemoCafeSwitcher.jsx";
+import InstallHint from "./components/InstallHint.jsx";
 import LayersWordmark from "./components/LayersWordmark.jsx";
+
+const NFC_TIMEOUT_MS = 90_000;
 
 export default function LoyaltyCard() {
   const [userSession, setUserSession] = useState(null);
@@ -35,13 +39,29 @@ export default function LoyaltyCard() {
   const [stampsRequired, setStampsRequired] = useState(BRAND.stampsRequired);
   const [cardsCompleted, setCardsCompleted] = useState(0);
   const [esperandoBarista, setEsperandoBarista] = useState(false);
+  const [cancellingNfc, setCancellingNfc] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [showComplete, setShowComplete] = useState(false);
   const [startingNew, setStartingNew] = useState(false);
   const [qrValue, setQrValue] = useState("");
   const unsubRequestRef = useRef(null);
+  const nfcTimeoutRef = useRef(null);
+  const pendingRequestIdRef = useRef(null);
   const prevStampsRef = useRef(0);
+
+  const clearNfcWait = () => {
+    if (nfcTimeoutRef.current) {
+      window.clearTimeout(nfcTimeoutRef.current);
+      nfcTimeoutRef.current = null;
+    }
+    if (unsubRequestRef.current) {
+      unsubRequestRef.current();
+      unsubRequestRef.current = null;
+    }
+    pendingRequestIdRef.current = null;
+    setEsperandoBarista(false);
+  };
 
   useEffect(() => {
     let cancelled = false;
@@ -108,8 +128,34 @@ export default function LoyaltyCard() {
       cancelled = true;
       unsubCard();
       if (unsubRequestRef.current) unsubRequestRef.current();
+      if (nfcTimeoutRef.current) window.clearTimeout(nfcTimeoutRef.current);
     };
   }, []);
+
+  const handleCancelNfc = async ({
+    timedOut = false,
+    requestId = pendingRequestIdRef.current,
+    publicId = userSession,
+  } = {}) => {
+    if (cancellingNfc) return;
+    setCancellingNfc(true);
+    try {
+      if (requestId && publicId) {
+        await cancelNfcRequest({ requestId, publicId });
+      }
+    } catch (err) {
+      console.error(err);
+      // Igual liberamos la UI; la petición puede haber caducado ya
+    } finally {
+      clearNfcWait();
+      setCancellingNfc(false);
+      if (timedOut) {
+        setError(
+          "Nadie respondió a tiempo. Vuelve a pedir el punto cuando el barista esté listo.",
+        );
+      }
+    }
+  };
 
   const handleNfcTap = async () => {
     if (!userSession || esperandoBarista) return;
@@ -127,18 +173,36 @@ export default function LoyaltyCard() {
         publicId: userSession,
       });
 
-      if (request.mode === "local") return;
+      pendingRequestIdRef.current = request.id;
+
+      const armTimeout = () => {
+        if (nfcTimeoutRef.current) window.clearTimeout(nfcTimeoutRef.current);
+        nfcTimeoutRef.current = window.setTimeout(() => {
+          handleCancelNfc({
+            timedOut: true,
+            requestId: request.id,
+            publicId: userSession,
+          });
+        }, NFC_TIMEOUT_MS);
+      };
+
+      if (request.mode === "local") {
+        armTimeout();
+        return;
+      }
 
       if (unsubRequestRef.current) unsubRequestRef.current();
       unsubRequestRef.current = subscribeNfcRequest(request.id, (updated) => {
         if (updated.status === "aprobado" || updated.status === "rechazado") {
-          setEsperandoBarista(false);
+          clearNfcWait();
         }
       });
+
+      armTimeout();
     } catch (err) {
       console.error(err);
-      setEsperandoBarista(false);
-      setError("No se pudo enviar la petición NFC.");
+      clearNfcWait();
+      setError("No se pudo enviar la petición. Inténtalo de nuevo.");
     }
   };
 
@@ -320,13 +384,25 @@ export default function LoyaltyCard() {
           </button>
 
           {esperandoBarista && (
-            <p
-              className="mt-4 animate-pulse text-center text-sm font-semibold text-brand"
-              role="status"
-            >
-              Esperando confirmación del barista...
-            </p>
+            <div className="mt-4 w-full space-y-3" role="status">
+              <p className="animate-pulse text-center text-sm font-semibold text-brand">
+                Esperando confirmación del barista…
+              </p>
+              <p className="text-center text-xs font-medium text-gray-400">
+                Se cancela sola a los 90 segundos si no responden
+              </p>
+              <button
+                type="button"
+                onClick={() => handleCancelNfc()}
+                disabled={cancellingNfc}
+                className="w-full rounded-2xl bg-stone-100 py-3 text-sm font-bold text-gray-700 hover:bg-stone-200 disabled:opacity-60"
+              >
+                {cancellingNfc ? "Cancelando…" : "Cancelar petición"}
+              </button>
+            </div>
           )}
+
+          <InstallHint />
         </section>
 
         {BRAND.isDemo && <DemoCafeSwitcher activeSlug={cafeSlug} />}
