@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Camera, ImagePlus, SwitchCamera, X } from "lucide-react";
 import jsQR from "jsqr";
+import { useT } from "../i18n/LanguageContext.jsx";
 
 /**
  * Escáner QR casero con getUserMedia + jsQR.
@@ -8,6 +9,7 @@ import jsQR from "jsqr";
  * Incluye: cambiar cámara y subir/fotografiar el QR.
  */
 export default function QrScannerModal({ open, onClose, onScan }) {
+  const t = useT();
   const [status, setStatus] = useState("Abriendo cámara…");
   const [cameraError, setCameraError] = useState(null);
   const [manualId, setManualId] = useState("");
@@ -211,22 +213,19 @@ export default function QrScannerModal({ open, onClose, onScan }) {
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 p-3 sm:items-center sm:p-4">
       <div className="flex max-h-[94dvh] w-full max-w-md flex-col overflow-hidden rounded-3xl bg-white shadow-xl">
         <div className="flex shrink-0 items-center justify-between border-b border-stone-100 px-5 py-4">
-          <h3 className="text-lg font-bold text-gray-900">Escanear QR</h3>
+          <h3 className="text-lg font-bold text-gray-900">{t("scan.title")}</h3>
           <button
             type="button"
             onClick={onClose}
             className="rounded-full bg-stone-100 p-2 text-gray-600 hover:bg-stone-200"
-            aria-label="Cerrar"
+            aria-label={t("scan.close")}
           >
             <X className="size-5" strokeWidth={2.5} />
           </button>
         </div>
 
         <div className="space-y-3 overflow-y-auto p-4">
-          <p className="text-sm text-gray-500">
-            Pon el QR del cliente delante de la cámara (otro móvil). Si no pilla,
-            usa <strong>Foto del QR</strong>.
-          </p>
+          <p className="text-sm text-gray-500">{t("scan.hint")}</p>
 
           <div className="relative overflow-hidden rounded-2xl bg-black">
             <video
@@ -266,7 +265,7 @@ export default function QrScannerModal({ open, onClose, onScan }) {
               className="flex items-center justify-center gap-2 rounded-2xl bg-stone-100 py-3 text-sm font-bold text-gray-800"
             >
               <SwitchCamera className="size-4" strokeWidth={2.5} />
-              Cambiar cámara
+              {t("scan.switchCam")}
             </button>
 
             <button
@@ -275,7 +274,7 @@ export default function QrScannerModal({ open, onClose, onScan }) {
               className="flex items-center justify-center gap-2 rounded-2xl bg-brand py-3 text-sm font-bold text-white"
             >
               <ImagePlus className="size-4" strokeWidth={2.5} />
-              Foto del QR
+              {t("scan.photo")}
             </button>
           </div>
 
@@ -291,7 +290,7 @@ export default function QrScannerModal({ open, onClose, onScan }) {
           <div className="border-t border-stone-100 pt-3">
             <p className="mb-2 flex items-center gap-1.5 text-xs font-bold uppercase tracking-wide text-gray-400">
               <Camera className="size-3.5" />
-              O escribe el ID
+              {t("scan.manual")}
             </p>
             <form
               className="flex gap-2"
@@ -304,14 +303,14 @@ export default function QrScannerModal({ open, onClose, onScan }) {
               <input
                 value={manualId}
                 onChange={(e) => setManualId(e.target.value)}
-                placeholder="4821"
+                placeholder={t("scan.placeholder")}
                 className="min-w-0 flex-1 rounded-xl border border-stone-200 bg-stone-50 px-3 py-2 text-sm font-semibold outline-none focus:ring-2 focus:ring-brand"
               />
               <button
                 type="submit"
                 className="rounded-xl bg-gray-900 px-4 py-2 text-sm font-bold text-white"
               >
-                Ir
+                {t("scan.go")}
               </button>
             </form>
           </div>

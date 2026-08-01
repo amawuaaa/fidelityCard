@@ -22,17 +22,20 @@ import {
   subscribeLoyaltyCard,
   subscribePendingNfcRequests,
 } from "./lib/loyaltyApi.js";
+import { useT } from "./i18n/LanguageContext.jsx";
 import QrScannerModal from "./components/QrScannerModal.jsx";
 import ManualSearchModal from "./components/ManualSearchModal.jsx";
 import CustomerResultCard from "./components/CustomerResultCard.jsx";
 import AdminLogin from "./components/AdminLogin.jsx";
 import CafeMetrics from "./components/CafeMetrics.jsx";
+import LanguageToggle from "./components/LanguageToggle.jsx";
 
 /**
  * Panel de Administrador (Barista) — Demo multi-cafetería
  * Protegido: login Supabase Auth (o PIN en modo local).
  */
 export default function AdminPanel() {
+  const t = useT();
   const [authReady, setAuthReady] = useState(false);
   const [session, setSession] = useState(null);
 
@@ -59,7 +62,7 @@ export default function AdminPanel() {
   if (!authReady) {
     return (
       <div className="flex min-h-dvh items-center justify-center bg-stone-100 text-sm font-semibold text-gray-400">
-        Comprobando acceso…
+        {t("admin.checking")}
       </div>
     );
   }
@@ -82,6 +85,7 @@ export default function AdminPanel() {
 }
 
 function AdminPanelInner({ onLogout }) {
+  const t = useT();
   const [peticionesNfc, setPeticionesNfc] = useState([]);
   const [cafeId, setCafeId] = useState(null);
   const [cafeName, setCafeName] = useState(BRAND.cafeName);
@@ -408,12 +412,12 @@ function AdminPanelInner({ onLogout }) {
 
       setPeticionesNfc((prev) => prev.filter((p) => p.id !== id));
       setHistorialHoy((prev) => [usuario, ...prev].slice(0, 8));
-      mostrarExito(`Punto aprobado para ${usuario}`);
+      mostrarExito(t("admin.approvedFor", { id: usuario }));
 
       if (isSupabaseConfigured) await cargarBandeja();
     } catch (err) {
       console.error(err);
-      setError("No se pudo aprobar el punto.");
+      setError(t("admin.approveFail"));
     } finally {
       setBusyId(null);
     }
@@ -428,7 +432,7 @@ function AdminPanelInner({ onLogout }) {
       if (isSupabaseConfigured) await cargarBandeja();
     } catch (err) {
       console.error(err);
-      setError("No se pudo rechazar la petición.");
+      setError(t("admin.rejectFail"));
     } finally {
       setBusyId(null);
     }
@@ -442,7 +446,7 @@ function AdminPanelInner({ onLogout }) {
             {BRAND.productName} · Barista
           </p>
           <h1 className="text-base font-bold tracking-wide sm:text-lg">
-            {cafeName} — Panel de Control
+            {cafeName} — {t("admin.controlPanel")}
           </h1>
           <p className="text-[10px] font-semibold text-white/40">
             /{cafeSlug}
@@ -450,20 +454,21 @@ function AdminPanelInner({ onLogout }) {
           </p>
         </div>
 
-        <div className="flex shrink-0 items-center gap-3">
+        <div className="flex shrink-0 items-center gap-2 sm:gap-3">
+          <LanguageToggle />
           <div className="flex items-center gap-2 text-xs font-semibold text-brand sm:text-sm">
             <span
               className="size-2.5 animate-pulse rounded-full bg-brand shadow-[0_0_8px_color-mix(in_srgb,var(--brand)_80%,transparent)]"
               aria-hidden
             />
-            En línea
+            {t("admin.online")}
           </div>
           <button
             type="button"
             onClick={onLogout}
             className="rounded-full bg-white/10 p-2 text-white hover:bg-white/20"
-            aria-label="Cerrar sesión"
-            title="Cerrar sesión"
+            aria-label={t("admin.logout")}
+            title={t("admin.logout")}
           >
             <LogOut className="size-4" strokeWidth={2.5} />
           </button>
@@ -499,7 +504,7 @@ function AdminPanelInner({ onLogout }) {
             className="flex w-full items-center justify-center gap-3 rounded-3xl bg-brand px-6 py-5 text-lg font-bold text-white shadow-sm transition active:scale-[0.99] hover:bg-brand-hover"
           >
             <Camera className="size-7" strokeWidth={2.5} aria-hidden />
-            Escanear QR de Cliente
+            {t("admin.scanQr")}
           </button>
 
           <button
@@ -511,7 +516,7 @@ function AdminPanelInner({ onLogout }) {
             className="flex w-full items-center justify-center gap-2 rounded-3xl bg-white px-6 py-4 text-base font-bold text-gray-900 shadow-sm ring-1 ring-stone-200 transition active:scale-[0.99] hover:bg-stone-50"
           >
             <Search className="size-5" strokeWidth={2.5} aria-hidden />
-            Buscar Cliente Manualmente
+            {t("admin.searchManual")}
           </button>
         </section>
 
@@ -524,7 +529,7 @@ function AdminPanelInner({ onLogout }) {
           onRefresh={() =>
             clienteSeleccionado &&
             refrescarCliente(clienteSeleccionado.publicId).catch((err) =>
-              setError(err.message || "No se pudo actualizar"),
+              setError(err.message || t("admin.refreshFail")),
             )
           }
           onClose={() => setClienteSeleccionado(null)}
@@ -533,24 +538,28 @@ function AdminPanelInner({ onLogout }) {
         <section>
           <div className="mb-4 flex flex-wrap items-end justify-between gap-2">
             <h2 className="text-xl font-bold text-gray-900 sm:text-2xl">
-              Peticiones NFC Pendientes
+              {t("admin.nfcTitle")}
             </h2>
             <span className="rounded-full bg-white px-3 py-1 text-sm font-bold text-gray-600 shadow-sm">
-              {loading ? "…" : `${peticionesNfc.length} esperando`}
+              {loading
+                ? "…"
+                : t("admin.waitingCount", { n: peticionesNfc.length })}
             </span>
           </div>
 
           {loading ? (
             <div className="rounded-3xl bg-white p-8 text-center shadow-sm">
-              <p className="text-sm font-semibold text-gray-400">Cargando…</p>
+              <p className="text-sm font-semibold text-gray-400">
+                {t("admin.loading")}
+              </p>
             </div>
           ) : peticionesNfc.length === 0 ? (
             <div className="rounded-3xl bg-white p-8 text-center shadow-sm">
               <p className="text-base font-semibold text-gray-500">
-                No hay peticiones pendientes
+                {t("admin.nfcEmpty")}
               </p>
               <p className="mt-1 text-sm text-gray-400">
-                Las nuevas tocadas NFC aparecerán aquí en tiempo real
+                {t("admin.nfcEmptyHint")}
               </p>
             </div>
           ) : (
@@ -563,7 +572,7 @@ function AdminPanelInner({ onLogout }) {
                   <div className="mb-5 flex items-start justify-between gap-3">
                     <div>
                       <p className="text-xs font-bold uppercase tracking-wider text-gray-400">
-                        Cliente
+                        {t("admin.customer")}
                       </p>
                       <p className="mt-0.5 text-xl font-extrabold text-gray-900">
                         {peticion.usuario}
@@ -582,7 +591,7 @@ function AdminPanelInner({ onLogout }) {
                       className="flex items-center justify-center gap-2 rounded-2xl bg-brand py-4 text-sm font-bold text-white shadow-sm transition active:scale-[0.98] hover:bg-brand-hover disabled:opacity-60 sm:text-base"
                     >
                       <Check className="size-5" strokeWidth={2.5} aria-hidden />
-                      Aprobar Punto
+                      {t("admin.approve")}
                     </button>
 
                     <button
@@ -592,7 +601,7 @@ function AdminPanelInner({ onLogout }) {
                       className="flex items-center justify-center gap-2 rounded-2xl bg-red-100 py-4 text-sm font-bold text-red-600 transition active:scale-[0.98] hover:bg-red-200 disabled:opacity-60 sm:text-base"
                     >
                       <X className="size-5" strokeWidth={2.5} aria-hidden />
-                      Rechazar
+                      {t("admin.reject")}
                     </button>
                   </div>
                 </li>
@@ -603,17 +612,17 @@ function AdminPanelInner({ onLogout }) {
 
         <footer className="mt-10 border-t border-stone-200 pt-5">
           <p className="text-sm text-gray-400">
-            Últimos puntos aprobados hoy:{" "}
+            {t("admin.history")}{" "}
             {historialHoy.length > 0
               ? `${historialHoy.join(", ")}...`
-              : "ninguno todavía"}
+              : t("admin.historyNone")}
           </p>
 
           <a
             href="#"
             className="mt-4 inline-block text-xs font-semibold text-gray-400 underline-offset-2 hover:text-brand hover:underline"
           >
-            ← Volver a la tarjeta de cliente
+            {t("admin.backToCard")}
           </a>
         </footer>
       </main>

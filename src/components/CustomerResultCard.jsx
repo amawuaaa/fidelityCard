@@ -1,4 +1,5 @@
 import { Check, Coffee, Minus, RefreshCw, Trophy, X } from "lucide-react";
+import { useT } from "../i18n/LanguageContext.jsx";
 
 /**
  * Resultado de cliente encontrado (QR o búsqueda) con acción de añadir/quitar punto.
@@ -12,6 +13,7 @@ export default function CustomerResultCard({
   onRefresh,
   onClose,
 }) {
+  const t = useT();
   if (!customer) return null;
 
   const completo = customer.stampsCount >= customer.stampsRequired;
@@ -26,7 +28,7 @@ export default function CustomerResultCard({
       <div className="mb-4 flex items-start justify-between gap-3">
         <div>
           <p className="text-xs font-bold uppercase tracking-wider text-gray-400">
-            Cliente encontrado
+            {t("result.found")}
           </p>
           <p className="mt-0.5 text-xl font-extrabold tracking-wide text-gray-900">
             {customer.shortCode || customer.publicId}
@@ -37,10 +39,13 @@ export default function CustomerResultCard({
             </p>
           )}
           <p className="mt-1 text-sm font-semibold text-gray-500">
-            {customer.stampsCount} / {customer.stampsRequired} cafés
+            {t("result.cafes", {
+              current: customer.stampsCount,
+              required: customer.stampsRequired,
+            })}
             {completo
-              ? " · ¡Cartón completo!"
-              : ` · ${restantes} para gratis`}
+              ? ` · ${t("result.complete")}`
+              : ` · ${t("result.left", { n: restantes })}`}
           </p>
         </div>
         <div className="flex items-center gap-1">
@@ -50,8 +55,8 @@ export default function CustomerResultCard({
               onClick={onRefresh}
               disabled={busy}
               className="rounded-full bg-stone-100 p-2 text-gray-500 hover:bg-stone-200 disabled:opacity-50"
-              aria-label="Actualizar cliente"
-              title="Actualizar"
+              aria-label={t("result.refresh")}
+              title={t("result.refresh")}
             >
               <RefreshCw className="size-4" strokeWidth={2.5} />
             </button>
@@ -60,7 +65,7 @@ export default function CustomerResultCard({
             type="button"
             onClick={onClose}
             className="rounded-full bg-stone-100 p-2 text-gray-500 hover:bg-stone-200"
-            aria-label="Cerrar resultado"
+            aria-label={t("result.close")}
           >
             <X className="size-4" strokeWidth={2.5} />
           </button>
@@ -92,15 +97,14 @@ export default function CustomerResultCard({
         <Trophy className="size-4 text-brand" strokeWidth={2.5} />
         {customer.cardsCompleted ?? 0}{" "}
         {(customer.cardsCompleted ?? 0) === 1
-          ? "cartón completado"
-          : "cartones completados"}
+          ? t("card.cardsOne")
+          : t("card.cardsMany")}
       </div>
 
       {completo ? (
         <div className="space-y-2">
           <p className="text-center text-xs font-medium text-gray-500">
-            Café gratis listo. Puedes canjear y abrir cartón nuevo, o al sumar el
-            siguiente café se abrirá solo.
+            {t("result.redeemHint")}
           </p>
           <button
             type="button"
@@ -108,7 +112,7 @@ export default function CustomerResultCard({
             onClick={onStartNewCard}
             className="flex w-full items-center justify-center gap-2 rounded-2xl bg-white py-3 text-sm font-bold text-gray-900 shadow-sm ring-1 ring-stone-200 transition hover:bg-stone-50 disabled:opacity-60"
           >
-            Solo empezar cartón nuevo (0/{customer.stampsRequired})
+            {t("result.newOnly", { n: customer.stampsRequired })}
           </button>
           <button
             type="button"
@@ -117,7 +121,7 @@ export default function CustomerResultCard({
             className="flex w-full items-center justify-center gap-2 rounded-2xl bg-brand py-4 text-base font-bold text-white shadow-sm transition hover:bg-brand-hover disabled:opacity-60"
           >
             <Check className="size-5" strokeWidth={2.5} />
-            {busy ? "Procesando…" : "Canjear gratis + 1 punto nuevo"}
+            {busy ? t("result.processing") : t("result.redeemAdd")}
           </button>
         </div>
       ) : (
@@ -128,7 +132,7 @@ export default function CustomerResultCard({
           className="flex w-full items-center justify-center gap-2 rounded-2xl bg-brand py-4 text-base font-bold text-white shadow-sm transition hover:bg-brand-hover disabled:opacity-60"
         >
           <Check className="size-5" strokeWidth={2.5} />
-          {busy ? "Añadiendo…" : "Añadir 1 punto"}
+          {busy ? t("result.adding") : t("result.add")}
         </button>
       )}
 
@@ -140,7 +144,7 @@ export default function CustomerResultCard({
           className="mt-2 flex w-full items-center justify-center gap-2 rounded-2xl bg-stone-100 py-3 text-sm font-bold text-gray-700 transition hover:bg-stone-200 disabled:opacity-60"
         >
           <Minus className="size-4" strokeWidth={2.5} />
-          Quitar 1 sello (corregir error)
+          {t("result.remove")}
         </button>
       )}
     </section>

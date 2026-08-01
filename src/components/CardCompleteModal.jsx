@@ -1,4 +1,5 @@
 import { Coffee, PartyPopper, Sparkles } from "lucide-react";
+import { useT } from "../i18n/LanguageContext.jsx";
 
 /**
  * Celebración para el CLIENTE al completar su cartón.
@@ -11,6 +12,7 @@ export default function CardCompleteModal({
   onClose,
   busy,
 }) {
+  const t = useT();
   if (!open) return null;
 
   return (
@@ -28,23 +30,19 @@ export default function CardCompleteModal({
         </div>
 
         <h3 className="relative text-2xl font-extrabold text-gray-900">
-          ¡Enhorabuena!
+          {t("complete.title")}
         </h3>
         <p className="relative mt-2 text-sm font-medium text-gray-500">
-          Completaste tu cartón. Muestra esto al barista y{" "}
-          <span className="font-bold text-gray-800">disfruta {rewardLabel}</span>
-          .
+          {t("complete.body", { reward: rewardLabel })}
         </p>
 
         <div className="relative mt-5 inline-flex items-center gap-2 rounded-full bg-brand-soft px-4 py-2 text-sm font-extrabold text-brand">
           <Coffee className="size-4" strokeWidth={2.5} />
           {cardsCompleted}{" "}
-          {cardsCompleted === 1 ? "cartón completado" : "cartones completados"}
+          {cardsCompleted === 1 ? t("card.cardsOne") : t("card.cardsMany")}
         </div>
 
-        <p className="relative mt-5 text-sm text-gray-500">
-          Cuando canjees el gratis, ¿empezamos un cartón nuevo?
-        </p>
+        <p className="relative mt-5 text-sm text-gray-500">{t("complete.ask")}</p>
 
         <div className="relative mt-4 space-y-2">
           <button
@@ -54,7 +52,7 @@ export default function CardCompleteModal({
             className="flex w-full items-center justify-center gap-2 rounded-2xl bg-brand py-4 text-base font-bold text-white shadow-sm transition hover:bg-brand-hover disabled:opacity-60"
           >
             <Sparkles className="size-5" strokeWidth={2.5} />
-            {busy ? "Empezando…" : "Sí, nuevo cartón"}
+            {busy ? t("complete.starting") : t("complete.yes")}
           </button>
           <button
             type="button"
@@ -62,7 +60,7 @@ export default function CardCompleteModal({
             onClick={onClose}
             className="w-full rounded-2xl bg-stone-100 py-3 text-sm font-bold text-gray-600 hover:bg-stone-200"
           >
-            Más tarde
+            {t("complete.later")}
           </button>
         </div>
       </div>

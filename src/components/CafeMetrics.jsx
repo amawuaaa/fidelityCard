@@ -1,29 +1,31 @@
 import { Coffee, Trophy, Users, Zap } from "lucide-react";
+import { useT } from "../i18n/LanguageContext.jsx";
 
 /**
  * Panel de métricas del café (barista ve resumen; owner ve lo mismo ampliado).
  */
 export default function CafeMetrics({ metrics, role }) {
+  const t = useT();
   if (!metrics) return null;
 
   const items = [
     {
-      label: "Sellos hoy",
+      label: t("metrics.stampsToday"),
       value: metrics.stamps_today ?? 0,
       icon: Zap,
     },
     {
-      label: "NFC pendientes",
+      label: t("metrics.pendingNfc"),
       value: metrics.pending_nfc ?? 0,
       icon: Coffee,
     },
     {
-      label: "Clientes activos",
+      label: t("metrics.activeCustomers"),
       value: metrics.active_customers ?? 0,
       icon: Users,
     },
     {
-      label: "Cartones completados",
+      label: t("metrics.cardsCompleted"),
       value: metrics.cards_completed_total ?? 0,
       icon: Trophy,
     },
@@ -33,7 +35,7 @@ export default function CafeMetrics({ metrics, role }) {
     <section className="mb-8">
       <div className="mb-3 flex items-end justify-between gap-2">
         <h2 className="text-lg font-bold text-gray-900">
-          {role === "owner" ? "Métricas del café" : "Resumen de hoy"}
+          {role === "owner" ? t("metrics.ownerTitle") : t("metrics.baristaTitle")}
         </h2>
         {role === "owner" && (
           <span className="rounded-full bg-brand-soft px-2.5 py-1 text-[10px] font-extrabold uppercase tracking-wide text-brand">

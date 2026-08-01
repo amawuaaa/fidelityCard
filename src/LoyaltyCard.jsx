@@ -18,15 +18,18 @@ import {
   pollNfcRequest,
   startNewCard,
 } from "./lib/loyaltyApi.js";
+import { useT } from "./i18n/LanguageContext.jsx";
 import CardCompleteModal from "./components/CardCompleteModal.jsx";
 import CupLogo from "./components/CupLogo.jsx";
 import DemoCafeSwitcher from "./components/DemoCafeSwitcher.jsx";
 import InstallHint from "./components/InstallHint.jsx";
+import LanguageToggle from "./components/LanguageToggle.jsx";
 import LayersWordmark from "./components/LayersWordmark.jsx";
 
 const NFC_TIMEOUT_MS = 90_000;
 
 export default function LoyaltyCard() {
+  const t = useT();
   const [userSession, setUserSession] = useState(null);
   const [shortCode, setShortCode] = useState(null);
   const [cafeSlug, setCafeSlug] = useState(getActiveCafeSlug());
@@ -117,8 +120,8 @@ export default function LoyaltyCard() {
           const msg = err?.message || "";
           setError(
             /no encontrado|Café no encontrado/i.test(msg)
-              ? `Este café (${slug}) aún no está en la base. Ejecuta supabase/cuptrack.sql en Supabase.`
-              : msg || "No se pudo cargar tu tarjeta. Inténtalo de nuevo.",
+              ? t("card.cafeMissing", { slug })
+              : msg || t("card.loadError"),
           );
         }
       } finally {
@@ -132,6 +135,7 @@ export default function LoyaltyCard() {
       if (stopPollRequestRef.current) stopPollRequestRef.current();
       if (nfcTimeoutRef.current) window.clearTimeout(nfcTimeoutRef.current);
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- sesión una vez al montar
   }, []);
 
   const handleCancelNfc = async ({
@@ -147,14 +151,11 @@ export default function LoyaltyCard() {
       }
     } catch (err) {
       console.error(err);
-      // Igual liberamos la UI; la petición puede haber caducado ya
     } finally {
       clearNfcWait();
       setCancellingNfc(false);
       if (timedOut) {
-        setError(
-          "Nadie respondió a tiempo. Vuelve a pedir el punto cuando el barista esté listo.",
-        );
+        setError(t("card.nfcTimeout"));
       }
     }
   };
@@ -208,7 +209,7 @@ export default function LoyaltyCard() {
     } catch (err) {
       console.error(err);
       clearNfcWait();
-      setError("No se pudo enviar la petición. Inténtalo de nuevo.");
+      setError(t("card.nfcSendError"));
     }
   };
 
@@ -226,7 +227,7 @@ export default function LoyaltyCard() {
       setShowComplete(false);
     } catch (err) {
       console.error(err);
-      setError(err.message || "No se pudo empezar el cartón nuevo.");
+      setError(err.message || t("card.newCardError"));
     } finally {
       setStartingNew(false);
     }
@@ -241,11 +242,12 @@ export default function LoyaltyCard() {
   return (
     <div className="min-h-dvh bg-[var(--page-bg)] text-gray-900">
       <div className="mx-auto flex min-h-dvh w-full max-w-md flex-col px-5 pb-8 pt-6">
-        <div className="mb-4 flex items-center justify-center">
+        <div className="mb-4 flex items-center justify-between">
           <span className="inline-flex items-center gap-1.5 rounded-full bg-brand-soft px-3 py-1 text-[11px] font-extrabold uppercase tracking-wider text-brand">
             <CupLogo className="size-3.5" decorative />
             {BRAND.productName}
           </span>
+          <LanguageToggle />
         </div>
 
         <header className="mb-8 text-center">
@@ -263,10 +265,14 @@ export default function LoyaltyCard() {
           </div>
 
           <h2 className="text-3xl font-bold leading-tight tracking-tight text-gray-900">
-            Tu Tarjeta de Fidelidad
+            {t("card.title")}
           </h2>
           <p className="mt-2 text-sm font-medium text-gray-500">
-            {tagline}: {rewardLabel} cada {stampsRequired} compras
+            {t("card.subtitle", {
+              tagline,
+              reward: rewardLabel,
+              n: stampsRequired,
+            })}
           </p>
         </header>
 
@@ -281,14 +287,21 @@ export default function LoyaltyCard() {
             "rounded-3xl bg-white p-6 shadow-sm transition",
             cartonCompleto ? "ring-2 ring-brand ring-offset-2" : "",
           ].join(" ")}
-          aria-label="Progreso de fidelidad"
+          aria-label={t("card.progressAria")}
         >
           <div className="mb-5 flex items-center justify-between">
             <p className="text-sm font-bold text-gray-900">
-              {loading ? "…" : `${cafesComprados} / ${stampsRequired} cafés`}
+              {loading
+                ? "…"
+                : t("card.progress", {
+                    current: cafesComprados,
+                    required: stampsRequired,
+                  })}
             </p>
             <span className="rounded-full bg-brand-soft px-3 py-1 text-xs font-bold text-brand">
-              {cartonCompleto ? "¡Gratis listo!" : `${restantes} para gratis`}
+              {cartonCompleto
+                ? t("card.ready")
+                : t("card.left", { n: restantes })}
             </span>
           </div>
 
@@ -336,19 +349,19 @@ export default function LoyaltyCard() {
           <div className="mt-5 flex items-center justify-center gap-2 rounded-2xl bg-stone-50 px-3 py-2.5 text-sm font-bold text-gray-700">
             <Trophy className="size-4 text-brand" strokeWidth={2.5} />
             {cardsCompleted}{" "}
-            {cardsCompleted === 1 ? "cartón completado" : "cartones completados"}
+            {cardsCompleted === 1 ? t("card.cardsOne") : t("card.cardsMany")}
           </div>
 
           {shortCode && (
             <div className="mt-3 rounded-2xl bg-brand-soft px-3 py-3 text-center">
               <p className="text-[11px] font-bold uppercase tracking-wider text-brand">
-                Código para la caja
+                {t("card.codeLabel")}
               </p>
               <p className="mt-0.5 text-3xl font-extrabold tracking-[0.2em] text-gray-900">
                 {shortCode}
               </p>
               <p className="mt-1 text-xs font-medium text-gray-500">
-                Si no escanean el QR, diles este número
+                {t("card.codeHint")}
               </p>
             </div>
           )}
@@ -359,7 +372,7 @@ export default function LoyaltyCard() {
               onClick={() => setShowComplete(true)}
               className="mt-3 w-full rounded-2xl bg-brand py-3 text-sm font-bold text-white hover:bg-brand-hover"
             >
-              Canjear / empezar cartón nuevo
+              {t("card.redeem")}
             </button>
           )}
         </section>
@@ -374,7 +387,7 @@ export default function LoyaltyCard() {
                 includeMargin
                 bgColor="#ffffff"
                 fgColor="#000000"
-                title={`QR de ${userSession}`}
+                title={`QR ${userSession}`}
               />
             ) : (
               <div className="size-40 animate-pulse rounded-xl bg-stone-100" />
@@ -385,7 +398,7 @@ export default function LoyaltyCard() {
           </div>
 
           <p className="mt-4 text-center text-sm font-medium text-gray-500">
-            Muestra este código al barista en caja
+            {t("card.showQr")}
           </p>
 
           <div className="mt-3 inline-flex items-center gap-1.5 rounded-full bg-white px-3.5 py-1.5 text-xs font-bold text-gray-600 shadow-sm">
@@ -400,16 +413,16 @@ export default function LoyaltyCard() {
             className="mt-6 flex w-full items-center justify-center gap-2 rounded-3xl bg-brand py-4 text-base font-bold text-white shadow-sm transition active:scale-[0.98] hover:bg-brand-hover disabled:cursor-not-allowed disabled:opacity-60"
           >
             <Nfc className="size-5" strokeWidth={2.5} aria-hidden />
-            Tocar para pedir punto
+            {t("card.askStamp")}
           </button>
 
           {esperandoBarista && (
             <div className="mt-4 w-full space-y-3" role="status">
               <p className="animate-pulse text-center text-sm font-semibold text-brand">
-                Esperando confirmación del barista…
+                {t("card.waiting")}
               </p>
               <p className="text-center text-xs font-medium text-gray-400">
-                Se cancela sola a los 90 segundos si no responden
+                {t("card.timeoutHint")}
               </p>
               <button
                 type="button"
@@ -417,7 +430,7 @@ export default function LoyaltyCard() {
                 disabled={cancellingNfc}
                 className="w-full rounded-2xl bg-stone-100 py-3 text-sm font-bold text-gray-700 hover:bg-stone-200 disabled:opacity-60"
               >
-                {cancellingNfc ? "Cancelando…" : "Cancelar petición"}
+                {cancellingNfc ? t("card.cancelling") : t("card.cancel")}
               </button>
             </div>
           )}

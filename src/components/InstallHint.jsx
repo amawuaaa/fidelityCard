@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { Share, X } from "lucide-react";
+import { useT } from "../i18n/LanguageContext.jsx";
 
 const DISMISS_KEY = "cuptrack_install_hint_dismissed";
 
@@ -23,6 +24,7 @@ function isAppleMobile() {
  * Tip breve para añadir CupTrack a la pantalla de inicio (PWA).
  */
 export default function InstallHint() {
+  const t = useT();
   const [visible, setVisible] = useState(false);
 
   useEffect(() => {
@@ -43,23 +45,25 @@ export default function InstallHint() {
       <div className="flex items-start gap-3">
         <div className="min-w-0 flex-1">
           <p className="text-sm font-extrabold text-gray-900">
-            Guárdala en tu móvil
+            {t("install.title")}
           </p>
           <p className="mt-1 text-xs font-medium leading-relaxed text-gray-500">
             {isAppleMobile() ? (
               <>
-                Toca{" "}
+                {t("install.iosPrefix")}{" "}
                 <Share
                   className="inline size-3.5 align-[-2px] text-brand"
                   strokeWidth={2.5}
                 />{" "}
-                Compartir → <span className="font-bold">Añadir a pantalla de inicio</span>
+                {t("install.iosSuffix")}{" "}
+                <span className="font-bold">{t("install.iosAction")}</span>
               </>
             ) : (
               <>
-                Menú del navegador →{" "}
-                <span className="font-bold">Instalar app</span> o{" "}
-                <span className="font-bold">Añadir a inicio</span>
+                {t("install.androidMenu")}{" "}
+                <span className="font-bold">{t("install.androidInstall")}</span>{" "}
+                {t("install.androidOr")}{" "}
+                <span className="font-bold">{t("install.androidHome")}</span>
               </>
             )}
           </p>
@@ -68,7 +72,7 @@ export default function InstallHint() {
           type="button"
           onClick={dismiss}
           className="rounded-full p-1.5 text-gray-400 hover:bg-stone-100 hover:text-gray-600"
-          aria-label="Cerrar"
+          aria-label={t("install.close")}
         >
           <X className="size-4" strokeWidth={2.5} />
         </button>

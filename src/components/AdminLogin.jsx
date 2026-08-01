@@ -3,13 +3,14 @@ import { Lock, LogIn } from "lucide-react";
 import { BRAND } from "../config/brand.js";
 import { isSupabaseConfigured } from "../lib/supabase.js";
 import { loginAdmin } from "../lib/adminAuth.js";
+import { useT } from "../i18n/LanguageContext.jsx";
+import LanguageToggle from "./LanguageToggle.jsx";
 
 /**
  * Pantalla de acceso al panel barista.
- * Con Supabase: email + password (Auth).
- * Sin Supabase / respaldo: PIN (VITE_ADMIN_PIN).
  */
 export default function AdminLogin({ onSuccess }) {
+  const t = useT();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState(null);
@@ -28,8 +29,8 @@ export default function AdminLogin({ onSuccess }) {
       console.error(err);
       setError(
         err.message === "Invalid login credentials"
-          ? "Email o contraseña incorrectos"
-          : err.message || "No se pudo iniciar sesión",
+          ? t("admin.badCreds")
+          : err.message || t("admin.loginFail"),
       );
     } finally {
       setLoading(false);
@@ -39,22 +40,25 @@ export default function AdminLogin({ onSuccess }) {
   return (
     <div className="flex min-h-dvh items-center justify-center bg-stone-100 px-4">
       <div className="w-full max-w-sm rounded-3xl bg-white p-6 shadow-sm">
+        <div className="mb-4 flex justify-end">
+          <LanguageToggle />
+        </div>
         <div className="mx-auto mb-4 flex size-14 items-center justify-center rounded-full bg-brand-soft">
           <Lock className="size-7 text-brand" strokeWidth={2.5} />
         </div>
 
         <h1 className="text-center text-xl font-extrabold text-gray-900">
-          Acceso barista
+          {t("admin.loginTitle")}
         </h1>
         <p className="mt-1 text-center text-sm text-gray-500">
-          {BRAND.productName} · solo personal del café
+          {t("admin.loginSubtitle", { product: BRAND.productName })}
         </p>
 
         <form onSubmit={submit} className="mt-6 space-y-3">
           {useEmailAuth && (
             <label className="block">
               <span className="mb-1.5 block text-xs font-bold uppercase tracking-wide text-gray-400">
-                Email
+                {t("admin.email")}
               </span>
               <input
                 type="email"
@@ -70,7 +74,7 @@ export default function AdminLogin({ onSuccess }) {
 
           <label className="block">
             <span className="mb-1.5 block text-xs font-bold uppercase tracking-wide text-gray-400">
-              {useEmailAuth ? "Contraseña" : "PIN de acceso"}
+              {useEmailAuth ? t("admin.password") : t("admin.pin")}
             </span>
             <input
               type="password"
@@ -95,19 +99,19 @@ export default function AdminLogin({ onSuccess }) {
             className="flex w-full items-center justify-center gap-2 rounded-2xl bg-brand py-3.5 text-base font-bold text-white hover:bg-brand-hover disabled:opacity-60"
           >
             <LogIn className="size-5" strokeWidth={2.5} />
-            {loading ? "Entrando…" : "Entrar al panel"}
+            {loading ? t("admin.entering") : t("admin.enter")}
           </button>
         </form>
 
         <p className="mt-4 text-center text-xs text-gray-400">
-          Acceso solo para personal autorizado
+          {t("admin.loginOnly")}
         </p>
 
         <a
           href="#"
           className="mt-3 block text-center text-xs font-semibold text-gray-400 hover:text-brand"
         >
-          ← Volver a la tarjeta
+          {t("admin.backCard")}
         </a>
       </div>
     </div>

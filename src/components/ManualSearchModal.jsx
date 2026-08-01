@@ -1,10 +1,12 @@
 import { useState } from "react";
 import { Search, X } from "lucide-react";
+import { useT } from "../i18n/LanguageContext.jsx";
 
 /**
  * Modal para buscar un cliente por código corto (4 dígitos) o usr_….
  */
 export default function ManualSearchModal({ open, onClose, onSearch, searching }) {
+  const t = useT();
   const [query, setQuery] = useState("");
 
   if (!open) return null;
@@ -20,12 +22,12 @@ export default function ManualSearchModal({ open, onClose, onSearch, searching }
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 p-4 sm:items-center">
       <div className="w-full max-w-md overflow-hidden rounded-3xl bg-white shadow-xl">
         <div className="flex items-center justify-between border-b border-stone-100 px-5 py-4">
-          <h3 className="text-lg font-bold text-gray-900">Buscar cliente</h3>
+          <h3 className="text-lg font-bold text-gray-900">{t("search.title")}</h3>
           <button
             type="button"
             onClick={onClose}
             className="rounded-full bg-stone-100 p-2 text-gray-600 hover:bg-stone-200"
-            aria-label="Cerrar"
+            aria-label={t("search.close")}
           >
             <X className="size-5" strokeWidth={2.5} />
           </button>
@@ -34,14 +36,14 @@ export default function ManualSearchModal({ open, onClose, onSearch, searching }
         <form onSubmit={submit} className="space-y-4 p-5">
           <label className="block">
             <span className="mb-2 block text-sm font-bold text-gray-700">
-              Código del cliente
+              {t("search.label")}
             </span>
             <input
               autoFocus
               inputMode="numeric"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder="ej. 4821"
+              placeholder={t("search.placeholder")}
               className="w-full rounded-2xl border border-stone-200 bg-stone-50 px-4 py-3 text-base font-semibold text-gray-900 outline-none ring-brand placeholder:text-gray-400 focus:ring-2"
             />
           </label>
@@ -52,7 +54,7 @@ export default function ManualSearchModal({ open, onClose, onSearch, searching }
             className="flex w-full items-center justify-center gap-2 rounded-2xl bg-brand py-4 text-base font-bold text-white shadow-sm transition hover:bg-brand-hover disabled:opacity-60"
           >
             <Search className="size-5" strokeWidth={2.5} />
-            {searching ? "Buscando…" : "Buscar"}
+            {searching ? t("search.searching") : t("search.submit")}
           </button>
         </form>
       </div>

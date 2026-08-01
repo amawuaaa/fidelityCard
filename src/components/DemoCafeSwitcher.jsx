@@ -1,6 +1,7 @@
 import { DEMO_CAFES, RAINBOW_GRADIENT } from "../config/theme.js";
+import { useT } from "../i18n/LanguageContext.jsx";
 
-function CafeChip({ cafe, active }) {
+function CafeChip({ cafe, active, t }) {
   const rainbow = cafe.themeStyle === "rainbow";
   const activeStyle = active
     ? rainbow
@@ -39,8 +40,8 @@ function CafeChip({ cafe, active }) {
           active ? "text-white/85" : "text-gray-400",
         ].join(" ")}
       >
-        {cafe.stampsRequired} sellos
-        {rainbow ? " · arcoíris" : ""}
+        {t("demo.stamps", { n: cafe.stampsRequired })}
+        {rainbow ? ` · ${t("demo.rainbow")}` : ""}
       </span>
     </a>
   );
@@ -50,6 +51,7 @@ function CafeChip({ cafe, active }) {
  * Selector de cafés demo + objetivos de pitch.
  */
 export default function DemoCafeSwitcher({ activeSlug }) {
+  const t = useT();
   const targets = DEMO_CAFES.filter((c) => c.group === "target");
   const demos = DEMO_CAFES.filter((c) => c.group === "demo");
 
@@ -57,10 +59,10 @@ export default function DemoCafeSwitcher({ activeSlug }) {
     <section className="mt-8 space-y-3">
       <div className="rounded-3xl bg-white p-4 shadow-sm">
         <p className="text-center text-[11px] font-extrabold uppercase tracking-wider text-gray-400">
-          Cafés objetivo
+          {t("demo.targets")}
         </p>
         <p className="mt-1 text-center text-xs font-medium text-gray-500">
-          Personalización real para el pitch
+          {t("demo.targetsHint")}
         </p>
         <div className="mt-3 grid grid-cols-2 gap-2">
           {targets.map((cafe) => (
@@ -68,6 +70,7 @@ export default function DemoCafeSwitcher({ activeSlug }) {
               key={cafe.slug}
               cafe={cafe}
               active={cafe.slug === activeSlug}
+              t={t}
             />
           ))}
         </div>
@@ -75,7 +78,7 @@ export default function DemoCafeSwitcher({ activeSlug }) {
 
       <div className="rounded-3xl bg-white p-4 shadow-sm">
         <p className="text-center text-[11px] font-extrabold uppercase tracking-wider text-gray-400">
-          Más demos
+          {t("demo.more")}
         </p>
         <div className="mt-3 grid grid-cols-3 gap-2">
           {demos.map((cafe) => (
@@ -83,6 +86,7 @@ export default function DemoCafeSwitcher({ activeSlug }) {
               key={cafe.slug}
               cafe={cafe}
               active={cafe.slug === activeSlug}
+              t={t}
             />
           ))}
         </div>
