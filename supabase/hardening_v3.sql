@@ -20,9 +20,19 @@ create unique index if not exists loyalty_cards_cafe_short_code_uidx
   on public.loyalty_cards (cafe_id, short_code)
   where short_code is not null;
 
+create or replace function public.new_claim_token()
+returns text
+language sql
+volatile
+as $$
+  select replace(gen_random_uuid()::text || gen_random_uuid()::text, '-', '');
+$$;
+
+revoke all on function public.new_claim_token() from public, anon, authenticated;
+
 -- Backfill claim_token
 update public.customers
-set claim_token = encode(gen_random_bytes(8), 'hex')
+set claim_token = public.new_claim_token()
 where claim_token is null;
 
 -- Backfill short_code (4 dígitos) por tarjeta
@@ -200,11 +210,11 @@ begin
   select * into v_customer from public.customers where public_id = p_public_id;
   if not found then
     insert into public.customers (public_id, claim_token)
-    values (p_public_id, encode(gen_random_bytes(8), 'hex'))
+    values (p_public_id, public.new_claim_token())
     returning * into v_customer;
   elsif v_customer.claim_token is null then
     update public.customers
-    set claim_token = encode(gen_random_bytes(8), 'hex')
+    set claim_token = public.new_claim_token()
     where id = v_customer.id
     returning * into v_customer;
   end if;

@@ -35,7 +35,8 @@ En Vercel → Settings → Environment Variables: las mismas claves.
 1. [`supabase/hardening_v2.sql`](supabase/hardening_v2.sql) — anti-spam NFC (si aún no)  
 2. [`supabase/cancel_nfc.sql`](supabase/cancel_nfc.sql) — cancelar petición  
 3. [`supabase/remove_stamp.sql`](supabase/remove_stamp.sql) — si aún no lo tienes  
-4. [`supabase/hardening_v3.sql`](supabase/hardening_v3.sql) — **seguridad + código corto de caja** (obligatorio)
+4. [`supabase/hardening_v3.sql`](supabase/hardening_v3.sql) — **seguridad + código corto de caja** (obligatorio)  
+5. [`supabase/fix_claim_token.sql`](supabase/fix_claim_token.sql) — si ves `gen_random_bytes does not exist` (PWA iPhone)
 
 `hardening_v3` cierra lecturas anónimas, añade `claim_token` y código de 4 dígitos por café.
 

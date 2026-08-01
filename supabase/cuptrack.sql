@@ -217,6 +217,17 @@ as $$
     and p_public_id ~ '^usr_[a-zA-Z0-9]{5,40}$';
 $$;
 
+-- Token de canje sin depender de pgcrypto.gen_random_bytes
+create or replace function public.new_claim_token()
+returns text
+language sql
+volatile
+as $$
+  select replace(gen_random_uuid()::text || gen_random_uuid()::text, '-', '');
+$$;
+
+revoke all on function public.new_claim_token() from public, anon, authenticated;
+
 create or replace function public.is_valid_short_code(p_code text)
 returns boolean
 language sql
@@ -345,11 +356,11 @@ begin
   select * into v_customer from public.customers where public_id = p_public_id;
   if not found then
     insert into public.customers (public_id, claim_token)
-    values (p_public_id, encode(gen_random_bytes(8), 'hex'))
+    values (p_public_id, public.new_claim_token())
     returning * into v_customer;
   elsif v_customer.claim_token is null then
     update public.customers
-    set claim_token = encode(gen_random_bytes(8), 'hex')
+    set claim_token = public.new_claim_token()
     where id = v_customer.id
     returning * into v_customer;
   end if;

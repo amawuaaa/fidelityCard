@@ -8,6 +8,7 @@ import {
 } from "./config/cafeContext.js";
 import {
   applyBrandToDocument,
+  localizeCafeCopy,
   stampFillStyle,
 } from "./config/theme.js";
 import {
@@ -18,7 +19,7 @@ import {
   pollNfcRequest,
   startNewCard,
 } from "./lib/loyaltyApi.js";
-import { useT } from "./i18n/LanguageContext.jsx";
+import { useLang, useT } from "./i18n/LanguageContext.jsx";
 import CardCompleteModal from "./components/CardCompleteModal.jsx";
 import CupLogo from "./components/CupLogo.jsx";
 import DemoCafeSwitcher from "./components/DemoCafeSwitcher.jsx";
@@ -30,12 +31,13 @@ const NFC_TIMEOUT_MS = 90_000;
 
 export default function LoyaltyCard() {
   const t = useT();
+  const { lang } = useLang();
   const [userSession, setUserSession] = useState(null);
   const [shortCode, setShortCode] = useState(null);
   const [cafeSlug, setCafeSlug] = useState(getActiveCafeSlug());
   const [cafeName, setCafeName] = useState(BRAND.cafeName);
-  const [tagline, setTagline] = useState(BRAND.tagline);
-  const [rewardLabel, setRewardLabel] = useState(BRAND.rewardLabel);
+  const [taglineRaw, setTaglineRaw] = useState(BRAND.tagline);
+  const [rewardLabelRaw, setRewardLabelRaw] = useState(BRAND.rewardLabel);
   const [themeStyle, setThemeStyle] = useState("solid");
   const [cafesComprados, setCafesComprados] = useState(0);
   const [stampsRequired, setStampsRequired] = useState(BRAND.stampsRequired);
@@ -80,8 +82,8 @@ export default function LoyaltyCard() {
         setShortCode(session.shortCode || null);
         setCafeSlug(session.cafeSlug || slug);
         setCafeName(session.cafeName);
-        setTagline(session.tagline || BRAND.tagline);
-        setRewardLabel(session.rewardLabel || BRAND.rewardLabel);
+        setTaglineRaw(session.tagline || BRAND.tagline);
+        setRewardLabelRaw(session.rewardLabel || BRAND.rewardLabel);
         setThemeStyle(session.themeStyle || "solid");
         setCafesComprados(session.stampsCount);
         setStampsRequired(session.stampsRequired);
@@ -235,6 +237,12 @@ export default function LoyaltyCard() {
 
   const restantes = Math.max(0, stampsRequired - cafesComprados);
   const cartonCompleto = cafesComprados >= stampsRequired;
+  const { tagline, rewardLabel } = localizeCafeCopy(
+    cafeSlug,
+    taglineRaw,
+    rewardLabelRaw,
+    lang,
+  );
 
   const isLayers = cafeSlug === "layers" || themeStyle === "rainbow";
   const isBakery = cafeSlug === "etma" || themeStyle === "bakery";

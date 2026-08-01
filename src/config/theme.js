@@ -24,7 +24,9 @@ export const DEMO_CAFES = [
     brandColor: "#178e3c",
     stampsRequired: 6,
     tagline: "Especialidad de barrio",
+    taglineEn: "Neighborhood specialty",
     rewardLabel: "1 café gratis",
+    rewardLabelEn: "1 free coffee",
     themeStyle: "solid",
     group: "demo",
   },
@@ -34,7 +36,9 @@ export const DEMO_CAFES = [
     brandColor: "#B45309",
     stampsRequired: 6,
     tagline: "Espresso & community",
+    taglineEn: "Espresso & community",
     rewardLabel: "1 bebida a elegir",
+    rewardLabelEn: "1 drink of your choice",
     themeStyle: "solid",
     group: "demo",
   },
@@ -44,7 +48,9 @@ export const DEMO_CAFES = [
     brandColor: "#0E7490",
     stampsRequired: 8,
     tagline: "Origen y tueste",
+    taglineEn: "Origin & roast",
     rewardLabel: "1 filter gratis",
+    rewardLabelEn: "1 free filter",
     themeStyle: "solid",
     group: "demo",
   },
@@ -54,7 +60,9 @@ export const DEMO_CAFES = [
     brandColor: "#EF4444",
     stampsRequired: 6,
     tagline: "Café con capas de color",
+    taglineEn: "Coffee in layers of color",
     rewardLabel: "1 café gratis",
+    rewardLabelEn: "1 free coffee",
     themeStyle: "rainbow",
     group: "target",
   },
@@ -64,14 +72,51 @@ export const DEMO_CAFES = [
     brandColor: "#44403C",
     stampsRequired: 8,
     tagline: "Bagels & breakfast",
+    taglineEn: "Bagels & breakfast",
     rewardLabel: "1 café o bagel",
+    rewardLabelEn: "1 coffee or bagel",
     themeStyle: "bakery",
     group: "target",
   },
 ];
 
+/** Traducciones rápidas de textos de café conocidos (DB en ES). */
+const COPY_EN = {
+  "Especialidad de barrio": "Neighborhood specialty",
+  "Café con capas de color": "Coffee in layers of color",
+  "Origen y tueste": "Origin & roast",
+  "1 café gratis": "1 free coffee",
+  "1 bebida a elegir": "1 drink of your choice",
+  "1 filter gratis": "1 free filter",
+  "1 café o bagel": "1 coffee or bagel",
+  "tu café gratis": "your free coffee",
+};
+
 export function getDemoCafe(slug) {
   return DEMO_CAFES.find((c) => c.slug === slug) || null;
+}
+
+/** Devuelve tagline + reward en el idioma activo. */
+export function localizeCafeCopy(slug, tagline, rewardLabel, lang = "es") {
+  const demo = getDemoCafe(slug);
+  if (lang === "en") {
+    return {
+      tagline:
+        demo?.taglineEn ||
+        COPY_EN[tagline] ||
+        tagline ||
+        BRAND.tagline,
+      rewardLabel:
+        demo?.rewardLabelEn ||
+        COPY_EN[rewardLabel] ||
+        rewardLabel ||
+        BRAND.rewardLabel,
+    };
+  }
+  return {
+    tagline: tagline || demo?.tagline || BRAND.tagline,
+    rewardLabel: rewardLabel || demo?.rewardLabel || BRAND.rewardLabel,
+  };
 }
 
 export function resolveThemeStyle(slug, fromDb) {
