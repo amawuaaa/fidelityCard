@@ -3,13 +3,19 @@ import { getActiveCafeSlug, setActiveCafeSlug } from "../config/cafeContext.js";
 import { getDemoCafe, resolveThemeStyle } from "../config/theme.js";
 import { isSupabaseConfigured, supabase } from "./supabase.js";
 
+/** ID opaco: usr_ + 16 hex (crypto). Compatibles con usr_12345 antiguos. */
 function generatePublicId() {
-  return `usr_${Math.floor(10000 + Math.random() * 90000)}`;
+  const bytes = new Uint8Array(8);
+  crypto.getRandomValues(bytes);
+  const hex = Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join(
+    "",
+  );
+  return `usr_${hex}`;
 }
 
 function getOrCreateLocalPublicId() {
   let publicId = localStorage.getItem(BRAND.storageKey);
-  if (!publicId) {
+  if (!publicId || !/^usr_[a-zA-Z0-9]{5,40}$/.test(publicId)) {
     publicId = generatePublicId();
     localStorage.setItem(BRAND.storageKey, publicId);
   }
@@ -354,7 +360,7 @@ export function parseCustomerPublicId(raw) {
   if (!raw) return null;
   const text = String(raw).trim().replace(/^["']|["']$/g, "");
 
-  const direct = text.match(/(usr_\d+)/i);
+  const direct = text.match(/(usr_[a-zA-Z0-9]{5,40})/i);
   if (direct) return direct[1];
 
   const stamped = text.match(/stamp:([^\s]+)/i);
@@ -367,13 +373,13 @@ export function parseCustomerPublicId(raw) {
       url.searchParams.get("user") ||
       url.searchParams.get("id");
     if (fromQuery) return parseCustomerPublicId(fromQuery);
-    const pathMatch = url.pathname.match(/(usr_\d+)/i);
+    const pathMatch = url.pathname.match(/(usr_[a-zA-Z0-9]{5,40})/i);
     if (pathMatch) return pathMatch[1];
   } catch {
     // no es URL
   }
 
-  if (/^usr_/i.test(text)) return text;
+  if (/^usr_[a-zA-Z0-9]{5,40}$/i.test(text)) return text;
   return null;
 }
 

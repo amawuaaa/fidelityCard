@@ -161,16 +161,28 @@ drop policy if exists "stamp_select_staff" on public.stamp_events;
 create policy "cafes_select" on public.cafes
   for select to anon, authenticated using (true);
 
--- Staff puede buscar clientes; anon no lee la tabla (usa RPC)
-create policy "customers_select_auth" on public.customers
-  for select to authenticated using (true);
+-- Lecturas: clientes vía RPC; Realtime anon acotado; staff solo su café
+drop policy if exists "loyalty_select_anon" on public.loyalty_cards;
+drop policy if exists "loyalty_select_staff" on public.loyalty_cards;
+drop policy if exists "nfc_select_anon_recent" on public.nfc_requests;
+drop policy if exists "nfc_select_staff" on public.nfc_requests;
 
--- Lectura abierta para Realtime (cliente). Mutaciones solo vía RPC.
-create policy "loyalty_select_read" on public.loyalty_cards
-  for select to anon, authenticated using (true);
+create policy "loyalty_select_anon" on public.loyalty_cards
+  for select to anon using (true);
 
-create policy "nfc_select_read" on public.nfc_requests
-  for select to anon, authenticated using (true);
+create policy "loyalty_select_staff" on public.loyalty_cards
+  for select to authenticated
+  using (public.is_staff_of_cafe(cafe_id));
+
+create policy "nfc_select_anon_recent" on public.nfc_requests
+  for select to anon using (
+    status = 'esperando'
+    or (resolved_at is not null and resolved_at > now() - interval '15 minutes')
+  );
+
+create policy "nfc_select_staff" on public.nfc_requests
+  for select to authenticated
+  using (public.is_staff_of_cafe(cafe_id));
 
 create policy "stamp_select_staff" on public.stamp_events
   for select to authenticated using (public.is_staff_of_cafe(cafe_id));
@@ -190,9 +202,21 @@ grant usage on schema public to anon, authenticated;
 grant select on table public.cafes to anon, authenticated;
 grant select on table public.loyalty_cards to anon, authenticated;
 grant select on table public.nfc_requests to anon, authenticated;
-grant select on table public.customers to authenticated;
 grant select on table public.stamp_events to authenticated;
 grant select on table public.cafe_staff to authenticated;
+
+create unique index if not exists nfc_one_pending_per_customer
+  on public.nfc_requests (cafe_id, customer_id)
+  where status = 'esperando';
+
+create or replace function public.is_valid_public_id(p_public_id text)
+returns boolean
+language sql
+immutable
+as $$
+  select p_public_id is not null
+    and p_public_id ~ '^usr_[a-zA-Z0-9]{5,40}$';
+$$;
 
 -- ——— RPCs públicos (cliente) ———
 create or replace function public.get_cafe_by_slug(p_slug text)
@@ -235,7 +259,7 @@ declare
   v_customer public.customers%rowtype;
   v_card public.loyalty_cards%rowtype;
 begin
-  if p_public_id is null or p_public_id !~ '^usr_[0-9]+$' then
+  if not public.is_valid_public_id(p_public_id) then
     raise exception 'ID de cliente no válido';
   end if;
 
@@ -289,22 +313,54 @@ set search_path = public
 as $$
 declare
   v_session json;
+  v_cafe_id uuid;
+  v_customer_id uuid;
   v_req_id uuid;
 begin
   v_session := public.ensure_customer_session(p_cafe_slug, p_public_id);
+  v_cafe_id := (v_session->>'cafe_id')::uuid;
+  v_customer_id := (v_session->>'customer_id')::uuid;
+
+  update public.nfc_requests
+  set status = 'rechazado', resolved_at = now()
+  where cafe_id = v_cafe_id
+    and customer_id = v_customer_id
+    and status = 'esperando'
+    and created_at < now() - interval '2 hours';
+
+  select id into v_req_id
+  from public.nfc_requests
+  where cafe_id = v_cafe_id
+    and customer_id = v_customer_id
+    and status = 'esperando'
+  order by created_at desc
+  limit 1;
+
+  if v_req_id is not null then
+    return json_build_object('id', v_req_id, 'reused', true);
+  end if;
 
   insert into public.nfc_requests (
     cafe_id, customer_id, public_id, status
   )
   values (
-    (v_session->>'cafe_id')::uuid,
-    (v_session->>'customer_id')::uuid,
+    v_cafe_id,
+    v_customer_id,
     v_session->>'public_id',
     'esperando'
   )
   returning id into v_req_id;
 
-  return json_build_object('id', v_req_id);
+  return json_build_object('id', v_req_id, 'reused', false);
+exception
+  when unique_violation then
+    select id into v_req_id
+    from public.nfc_requests
+    where cafe_id = v_cafe_id
+      and customer_id = v_customer_id
+      and status = 'esperando'
+    limit 1;
+    return json_build_object('id', v_req_id, 'reused', true);
 end;
 $$;
 
@@ -322,6 +378,10 @@ declare
   v_customer public.customers%rowtype;
   v_card public.loyalty_cards%rowtype;
 begin
+  if not public.is_valid_public_id(p_public_id) then
+    raise exception 'ID de cliente no válido';
+  end if;
+
   select * into v_cafe from public.cafes where slug = p_cafe_slug;
   if not found then raise exception 'Café no encontrado'; end if;
 
@@ -348,6 +408,10 @@ begin
 
   if v_card.stamps_count < v_cafe.stamps_required then
     raise exception 'El cartón aún no está completo.';
+  end if;
+
+  if v_card.updated_at > now() - interval '10 seconds' then
+    raise exception 'Espera unos segundos antes de reiniciar el cartón.';
   end if;
 
   update public.loyalty_cards
@@ -826,6 +890,7 @@ revoke all on function public.get_my_cafe() from public, anon, authenticated;
 revoke all on function public.get_cafe_metrics() from public, anon, authenticated;
 revoke all on function public.get_customer_card(text) from public, anon, authenticated;
 
+grant execute on function public.is_valid_public_id(text) to anon, authenticated;
 grant execute on function public.get_cafe_by_slug(text) to anon, authenticated;
 grant execute on function public.ensure_customer_session(text, text) to anon, authenticated;
 grant execute on function public.create_nfc_request(text, text) to anon, authenticated;

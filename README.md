@@ -17,26 +17,31 @@ React + Vite + Tailwind · Supabase (Auth, Postgres, Realtime) · Vercel
 cp .env.example .env
 ```
 
-Rellena `VITE_SUPABASE_URL` y `VITE_SUPABASE_ANON_KEY`.  
-Para el pitch: `VITE_DEMO=true`. En producción real: `VITE_DEMO=false`.
+Rellena `VITE_SUPABASE_URL` y `VITE_SUPABASE_ANON_KEY`.
 
-En Vercel → Project → Settings → Environment Variables: las mismas claves.
+| Entorno | `VITE_DEMO` |
+|---------|-------------|
+| Pitch / demos | `true` |
+| Café en producción | `false` |
 
-### 2. SQL (una sola fuente de verdad)
+En Vercel → Settings → Environment Variables: las mismas claves.
 
-En Supabase → **SQL Editor** → pega y ejecuta **todo**:
+### 2. SQL
 
-[`supabase/cuptrack.sql`](supabase/cuptrack.sql)
+**Proyecto nuevo:** ejecuta todo [`supabase/cuptrack.sql`](supabase/cuptrack.sql).
 
-Eso crea/actualiza tablas, **RLS endurecido**, RPCs y cafés demo (Café Demo, Bean & Co, Norte, Layers, ETMA).
+**Proyecto que ya tenía `cuptrack.sql`:** ejecuta además  
+[`supabase/hardening_v2.sql`](supabase/hardening_v2.sql)  
+(IDs largos, anti-spam NFC, RLS lecturas, cooldown `start_new_card`).
 
-> Los archivos antiguos (`schema.sql`, `secure_admin.sql`, `multi_cafe.sql`, etc.) quedan como histórico. **No los re-ejecutes** después de `cuptrack.sql` (pueden reabrir permisos).
+> No re-ejecutes scripts LEGACY (`schema.sql`, `secure_admin.sql`, etc.).
 
-### 3. Auth barista
+### 3. Auth barista (importante)
 
 1. Authentication → Users → Add user (email + password)
-2. (Recomendado) desactiva sign-ups públicos
-3. Query **nueva**:
+2. **Authentication → Providers → Email → desactiva “Allow new users to sign up”**  
+   (nadie se registra solo desde la web)
+3. Query nueva:
 
 ```sql
 select public.link_staff_by_email(
@@ -72,9 +77,10 @@ npm run dev
 
 ## Seguridad (resumen)
 
-- Sellos / aprobar NFC: solo **barista autenticado** de ese café
-- Cliente: `ensure_customer_session` + `create_nfc_request` + `start_new_card` (RPC)
-- Tablas: sin INSERT/UPDATE/DELETE anónimo directo a sellos
+- Sellos / aprobar / quitar: solo **barista autenticado** de ese café
+- Cliente: RPCs `ensure_customer_session`, `create_nfc_request`, `start_new_card`
+- IDs `usr_` opacos (hex); NFC: 1 pendiente por cliente + caduca a las 2h
+- Staff ve solo NFC/tarjetas de su café; anon no lista historial NFC antiguo
 - `link_staff_by_email`: solo SQL editor / service_role
 
 ## Scripts legacy
