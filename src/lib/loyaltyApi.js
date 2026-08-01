@@ -4,18 +4,18 @@ import { getDemoCafe, resolveThemeStyle } from "../config/theme.js";
 import { isSupabaseConfigured, supabase } from "./supabase.js";
 
 /**
- * ID opaco: usr_ + 12 dígitos (crypto).
- * Solo dígitos → compatible con SQL antiguo (^usr_[0-9]+) y con hardening_v2.
+ * ID: usr_ + 7 dígitos (crypto). Corto para decir en caja, ~10M combinaciones.
+ * Compatible con SQL (^usr_[0-9]+) y con IDs antiguos de 5 dígitos.
  */
 function generatePublicId() {
-  const bytes = new Uint8Array(12);
+  const bytes = new Uint8Array(7);
   crypto.getRandomValues(bytes);
   const digits = Array.from(bytes, (b) => (b % 10).toString()).join("");
   return `usr_${digits}`;
 }
 
 function isValidPublicId(publicId) {
-  return typeof publicId === "string" && /^usr_[0-9]{5,40}$/.test(publicId);
+  return typeof publicId === "string" && /^usr_[0-9]{5,12}$/.test(publicId);
 }
 
 function getOrCreateLocalPublicId({ forceNew = false } = {}) {
@@ -379,7 +379,7 @@ export function parseCustomerPublicId(raw) {
   if (!raw) return null;
   const text = String(raw).trim().replace(/^["']|["']$/g, "");
 
-  const direct = text.match(/(usr_[0-9]{5,40})/i);
+  const direct = text.match(/(usr_[0-9]{5,12})/i);
   if (direct) return direct[1];
 
   const stamped = text.match(/stamp:([^\s]+)/i);
@@ -392,13 +392,13 @@ export function parseCustomerPublicId(raw) {
       url.searchParams.get("user") ||
       url.searchParams.get("id");
     if (fromQuery) return parseCustomerPublicId(fromQuery);
-    const pathMatch = url.pathname.match(/(usr_[0-9]{5,40})/i);
+    const pathMatch = url.pathname.match(/(usr_[0-9]{5,12})/i);
     if (pathMatch) return pathMatch[1];
   } catch {
     // no es URL
   }
 
-  if (/^usr_[0-9]{5,40}$/i.test(text)) return text;
+  if (/^usr_[0-9]{5,12}$/i.test(text)) return text;
   return null;
 }
 
