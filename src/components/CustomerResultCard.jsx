@@ -1,12 +1,13 @@
-import { Check, Coffee, RefreshCw, Trophy, X } from "lucide-react";
+import { Check, Coffee, Minus, RefreshCw, Trophy, X } from "lucide-react";
 
 /**
- * Resultado de cliente encontrado (QR o búsqueda) con acción de añadir punto.
+ * Resultado de cliente encontrado (QR o búsqueda) con acción de añadir/quitar punto.
  */
 export default function CustomerResultCard({
   customer,
   busy,
   onAddStamp,
+  onRemoveStamp,
   onStartNewCard,
   onRefresh,
   onClose,
@@ -18,6 +19,7 @@ export default function CustomerResultCard({
     0,
     customer.stampsRequired - customer.stampsCount,
   );
+  const canRemove = customer.stampsCount > 0;
 
   return (
     <section className="mb-8 rounded-3xl bg-white p-5 shadow-sm ring-2 ring-brand-soft sm:p-6">
@@ -122,6 +124,18 @@ export default function CustomerResultCard({
         >
           <Check className="size-5" strokeWidth={2.5} />
           {busy ? "Añadiendo…" : "Añadir 1 punto"}
+        </button>
+      )}
+
+      {canRemove && onRemoveStamp && (
+        <button
+          type="button"
+          disabled={busy}
+          onClick={onRemoveStamp}
+          className="mt-2 flex w-full items-center justify-center gap-2 rounded-2xl bg-stone-100 py-3 text-sm font-bold text-gray-700 transition hover:bg-stone-200 disabled:opacity-60"
+        >
+          <Minus className="size-4" strokeWidth={2.5} />
+          Quitar 1 sello (corregir error)
         </button>
       )}
     </section>

@@ -453,6 +453,34 @@ export async function addStampByPublicId(
   return { ...data, mode: "supabase" };
 }
 
+/** Quita 1 sello (corregir error). Solo barista del café. */
+export async function removeStampByPublicId(
+  publicId,
+  cafeSlug = getActiveCafeSlug(),
+) {
+  const cleanId = parseCustomerPublicId(publicId);
+  if (!cleanId) {
+    throw new Error("ID de cliente no válido.");
+  }
+
+  if (!isSupabaseConfigured) {
+    return {
+      public_id: cleanId,
+      stamps_count: null,
+      cards_completed: null,
+      mode: "local",
+    };
+  }
+
+  const { data, error } = await supabase.rpc("remove_stamp_by_public_id", {
+    p_cafe_slug: cafeSlug,
+    p_public_id: cleanId,
+  });
+
+  if (error) throw error;
+  return { ...data, mode: "supabase" };
+}
+
 /** Reinicia sellos a 0 tras completar un cartón (mantiene cards_completed). */
 export async function startNewCard(
   publicId,

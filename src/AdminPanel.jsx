@@ -17,6 +17,7 @@ import {
   fetchTodayApprovals,
   findCustomerByPublicId,
   rejectNfcRequest,
+  removeStampByPublicId,
   startNewCard,
   subscribeLoyaltyCard,
   subscribePendingNfcRequests,
@@ -237,6 +238,42 @@ function AdminPanelInner({ onLogout }) {
     },
     [],
   );
+
+  const handleRemoveStamp = async () => {
+    if (!clienteSeleccionado || addingStamp) return;
+    setAddingStamp(true);
+    setError(null);
+    try {
+      const result = await removeStampByPublicId(clienteSeleccionado.publicId);
+      setClienteSeleccionado((prev) =>
+        prev
+          ? {
+              ...prev,
+              stampsCount:
+                typeof result.stamps_count === "number"
+                  ? result.stamps_count
+                  : Math.max(0, prev.stampsCount - 1),
+              cardsCompleted:
+                typeof result.cards_completed === "number"
+                  ? result.cards_completed
+                  : prev.cardsCompleted,
+            }
+          : prev,
+      );
+      mostrarExito(`Sello quitado · ${clienteSeleccionado.publicId}`);
+      if (isSupabaseConfigured) await cargarBandeja();
+    } catch (err) {
+      console.error(err);
+      setError(err?.message || "No se pudo quitar el sello.");
+      try {
+        await refrescarCliente(clienteSeleccionado.publicId);
+      } catch {
+        // ignore
+      }
+    } finally {
+      setAddingStamp(false);
+    }
+  };
 
   const handleAddStamp = async () => {
     if (!clienteSeleccionado || addingStamp) return;
@@ -482,6 +519,7 @@ function AdminPanelInner({ onLogout }) {
           customer={clienteSeleccionado}
           busy={addingStamp || startingNew}
           onAddStamp={handleAddStamp}
+          onRemoveStamp={handleRemoveStamp}
           onStartNewCard={handleStartNewCard}
           onRefresh={() =>
             clienteSeleccionado &&
