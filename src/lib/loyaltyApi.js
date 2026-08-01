@@ -3,59 +3,32 @@ import { getActiveCafeSlug, setActiveCafeSlug } from "../config/cafeContext.js";
 import { getDemoCafe, resolveThemeStyle } from "../config/theme.js";
 import { isSupabaseConfigured, supabase } from "./supabase.js";
 
-/** ID opaco: usr_ + 16 hex (crypto). Compatibles con usr_12345 antiguos. */
+/**
+ * ID opaco: usr_ + 12 dígitos (crypto).
+ * Solo dígitos → compatible con SQL antiguo (^usr_[0-9]+) y con hardening_v2.
+ */
 function generatePublicId() {
-  const bytes = new Uint8Array(8);
+  const bytes = new Uint8Array(12);
   crypto.getRandomValues(bytes);
-  const hex = Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join(
-    "",
-  );
-  return `usr_${hex}`;
+  const digits = Array.from(bytes, (b) => (b % 10).toString()).join("");
+  return `usr_${digits}`;
 }
 
-function getOrCreateLocalPublicId() {
-  let publicId = localStorage.getItem(BRAND.storageKey);
-  if (!publicId || !/^usr_[a-zA-Z0-9]{5,40}$/.test(publicId)) {
+function isValidPublicId(publicId) {
+  return typeof publicId === "string" && /^usr_[0-9]{5,40}$/.test(publicId);
+}
+
+function getOrCreateLocalPublicId({ forceNew = false } = {}) {
+  let publicId = forceNew ? null : localStorage.getItem(BRAND.storageKey);
+  // Si quedó un ID con letras (deploy hex) o inválido → regenerar
+  if (!isValidPublicId(publicId)) {
     publicId = generatePublicId();
     localStorage.setItem(BRAND.storageKey, publicId);
   }
   return publicId;
 }
 
-/**
- * Obtiene (o crea) el cliente + su tarjeta de fidelidad para un café.
- * Sin Supabase: solo usa localStorage y sellos mock.
- */
-export async function ensureCustomerSession(cafeSlug = getActiveCafeSlug()) {
-  const publicId = getOrCreateLocalPublicId();
-  setActiveCafeSlug(cafeSlug);
-
-  if (!isSupabaseConfigured) {
-    const demo = getDemoCafe(cafeSlug);
-    return {
-      publicId,
-      customerId: null,
-      cafeId: null,
-      cafeSlug,
-      stampsCount: 4,
-      stampsRequired: demo?.stampsRequired ?? BRAND.stampsRequired,
-      cardsCompleted: 0,
-      cafeName: demo?.name ?? BRAND.cafeName,
-      brandColor: demo?.brandColor ?? BRAND.color,
-      tagline: demo?.tagline ?? BRAND.tagline,
-      rewardLabel: demo?.rewardLabel ?? BRAND.rewardLabel,
-      themeStyle: resolveThemeStyle(cafeSlug, demo?.themeStyle),
-      mode: "local",
-    };
-  }
-
-  const { data, error } = await supabase.rpc("ensure_customer_session", {
-    p_cafe_slug: cafeSlug,
-    p_public_id: publicId,
-  });
-
-  if (error) throw error;
-
+function mapSession(data, cafeSlug) {
   return {
     publicId: data.public_id,
     customerId: data.customer_id,
@@ -74,6 +47,52 @@ export async function ensureCustomerSession(cafeSlug = getActiveCafeSlug()) {
     ),
     mode: "supabase",
   };
+}
+
+/**
+ * Obtiene (o crea) el cliente + su tarjeta de fidelidad para un café.
+ * Sin Supabase: solo usa localStorage y sellos mock.
+ */
+export async function ensureCustomerSession(cafeSlug = getActiveCafeSlug()) {
+  setActiveCafeSlug(cafeSlug);
+
+  if (!isSupabaseConfigured) {
+    const publicId = getOrCreateLocalPublicId();
+    const demo = getDemoCafe(cafeSlug);
+    return {
+      publicId,
+      customerId: null,
+      cafeId: null,
+      cafeSlug,
+      stampsCount: 4,
+      stampsRequired: demo?.stampsRequired ?? BRAND.stampsRequired,
+      cardsCompleted: 0,
+      cafeName: demo?.name ?? BRAND.cafeName,
+      brandColor: demo?.brandColor ?? BRAND.color,
+      tagline: demo?.tagline ?? BRAND.tagline,
+      rewardLabel: demo?.rewardLabel ?? BRAND.rewardLabel,
+      themeStyle: resolveThemeStyle(cafeSlug, demo?.themeStyle),
+      mode: "local",
+    };
+  }
+
+  let publicId = getOrCreateLocalPublicId();
+  let { data, error } = await supabase.rpc("ensure_customer_session", {
+    p_cafe_slug: cafeSlug,
+    p_public_id: publicId,
+  });
+
+  // ID con letras u obsoleto en el móvil → nuevo ID y reintento
+  if (error && /ID de cliente no válido|invalid/i.test(error.message || "")) {
+    publicId = getOrCreateLocalPublicId({ forceNew: true });
+    ({ data, error } = await supabase.rpc("ensure_customer_session", {
+      p_cafe_slug: cafeSlug,
+      p_public_id: publicId,
+    }));
+  }
+
+  if (error) throw error;
+  return mapSession(data, cafeSlug);
 }
 
 /** Café + rol del barista autenticado. */
@@ -360,7 +379,7 @@ export function parseCustomerPublicId(raw) {
   if (!raw) return null;
   const text = String(raw).trim().replace(/^["']|["']$/g, "");
 
-  const direct = text.match(/(usr_[a-zA-Z0-9]{5,40})/i);
+  const direct = text.match(/(usr_[0-9]{5,40})/i);
   if (direct) return direct[1];
 
   const stamped = text.match(/stamp:([^\s]+)/i);
@@ -373,13 +392,13 @@ export function parseCustomerPublicId(raw) {
       url.searchParams.get("user") ||
       url.searchParams.get("id");
     if (fromQuery) return parseCustomerPublicId(fromQuery);
-    const pathMatch = url.pathname.match(/(usr_[a-zA-Z0-9]{5,40})/i);
+    const pathMatch = url.pathname.match(/(usr_[0-9]{5,40})/i);
     if (pathMatch) return pathMatch[1];
   } catch {
     // no es URL
   }
 
-  if (/^usr_[a-zA-Z0-9]{5,40}$/i.test(text)) return text;
+  if (/^usr_[0-9]{5,40}$/i.test(text)) return text;
   return null;
 }
 
