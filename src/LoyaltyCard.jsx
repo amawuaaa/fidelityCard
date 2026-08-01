@@ -95,7 +95,7 @@ export default function LoyaltyCard() {
           const msg = err?.message || "";
           setError(
             /no encontrado|Café no encontrado/i.test(msg)
-              ? `Este café (${slug}) aún no está en la base. Ejecuta supabase/demo_cafes.sql en Supabase.`
+              ? `Este café (${slug}) aún no está en la base. Ejecuta supabase/cuptrack.sql en Supabase.`
               : msg || "No se pudo cargar tu tarjeta. Inténtalo de nuevo.",
           );
         }
@@ -123,8 +123,7 @@ export default function LoyaltyCard() {
 
     try {
       const request = await createNfcRequest({
-        cafeId,
-        customerId,
+        cafeSlug,
         publicId: userSession,
       });
 
@@ -332,12 +331,14 @@ export default function LoyaltyCard() {
 
         {BRAND.isDemo && <DemoCafeSwitcher activeSlug={cafeSlug} />}
 
-        <a
-          href="#admin"
-          className="mt-auto pt-8 text-center text-[10px] font-semibold tracking-wide text-stone-300"
-        >
-          Staff
-        </a>
+        {BRAND.isDemo && (
+          <a
+            href="#admin"
+            className="mt-auto pt-8 text-center text-[10px] font-semibold tracking-wide text-stone-300"
+          >
+            Staff
+          </a>
+        )}
       </div>
 
       <CardCompleteModal

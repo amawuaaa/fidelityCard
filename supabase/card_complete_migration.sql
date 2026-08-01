@@ -1,6 +1,5 @@
 -- =============================================================================
--- Stamp — Cartones completados + lógica de nuevo cartón
--- Ejecuta esto UNA VEZ en Supabase SQL Editor.
+-- LEGACY — No usar. Fuente de verdad: supabase/cuptrack.sql
 -- =============================================================================
 
 -- Contador de cartones completados por cliente/café

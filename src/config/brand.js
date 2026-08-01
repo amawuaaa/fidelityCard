@@ -1,15 +1,16 @@
 /**
- * Configuración de marca — Demo multi-cafetería
- *
- * Cada café real vive en Supabase (nombre, color, sellos, tagline).
- * Ver DEMO_CAFES en theme.js y supabase/demo_cafes.sql
+ * Configuración de marca — CupTrack
  *
  * Producción: https://www.cuptrack.com
- * Cliente A → /?cafe=cafe-demo
- * Cliente B → /?cafe=bean-co
- * Cliente C → /?cafe=norte
- * Staff     → /#admin
+ * Cliente → /?cafe=<slug>
+ * Staff   → /#admin
+ *
+ * Demo pitch: VITE_DEMO=true (muestra switcher de cafés)
  */
+const demoFlag = String(import.meta.env.VITE_DEMO || "")
+  .toLowerCase()
+  .trim();
+
 export const BRAND = {
   productName: "CupTrack",
   productTagline: "Fidelidad para cafeterías",
@@ -21,5 +22,6 @@ export const BRAND = {
   tagline: "Especialidad de barrio",
   rewardLabel: "1 café gratis",
   storageKey: "stamp_customer_id",
-  isDemo: true,
+  /** Solo true si VITE_DEMO=true | 1 | yes */
+  isDemo: demoFlag === "true" || demoFlag === "1" || demoFlag === "yes",
 };

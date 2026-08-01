@@ -1,13 +1,8 @@
 -- =============================================================================
--- Stamp — Schema multi-cafetería (Supabase / PostgreSQL)
+-- LEGACY — No usar en proyectos nuevos.
+-- Fuente de verdad: supabase/cuptrack.sql
 -- =============================================================================
--- Cómo usarlo:
--- 1) Crea un proyecto en https://supabase.com
--- 2) Ve a SQL Editor → New query
--- 3) Pega y ejecuta TODO este archivo
--- 4) Copia Project URL + anon key a tu archivo .env (ver .env.example)
--- 5) En Database → Replication, activa Realtime para:
---      nfc_requests, loyalty_cards
+-- Stamp — Schema multi-cafetería (Supabase / PostgreSQL)
 -- =============================================================================
 
 -- Extensión UUID

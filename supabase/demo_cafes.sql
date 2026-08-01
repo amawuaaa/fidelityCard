@@ -1,7 +1,7 @@
 -- =============================================================================
+-- LEGACY — No usar. Fuente de verdad: supabase/cuptrack.sql
+-- =============================================================================
 -- CupTrack — Cafés de demostración + objetivos (Layers, ETMA)
--- Ejecuta en Supabase SQL Editor (después de multi_cafe.sql).
--- Seguro re-ejecutar (upsert por slug).
 -- =============================================================================
 -- Links:
 --   /?cafe=cafe-demo  → verde

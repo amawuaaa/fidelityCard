@@ -1,6 +1,7 @@
 -- =============================================================================
+-- LEGACY — No usar. Fuente de verdad: supabase/cuptrack.sql
+-- =============================================================================
 -- Stamp — Multi-café + roles + métricas
--- Ejecuta UNA VEZ en Supabase SQL Editor (después de secure_admin.sql).
 -- =============================================================================
 --
 -- ORDEN CORRECTO:

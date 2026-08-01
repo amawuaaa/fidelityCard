@@ -43,93 +43,28 @@ export async function ensureCustomerSession(cafeSlug = getActiveCafeSlug()) {
     };
   }
 
-  const { data: cafeJson, error: cafeRpcError } = await supabase.rpc(
-    "get_cafe_by_slug",
-    { p_slug: cafeSlug },
-  );
+  const { data, error } = await supabase.rpc("ensure_customer_session", {
+    p_cafe_slug: cafeSlug,
+    p_public_id: publicId,
+  });
 
-  let cafe;
-  if (cafeRpcError) {
-    // Fallback si aún no está el RPC multi_cafe
-    const { data, error } = await supabase
-      .from("cafes")
-      .select(
-        "id, name, slug, stamps_required, brand_color, tagline, reward_label, theme_style",
-      )
-      .eq("slug", cafeSlug)
-      .single();
-    if (error) throw error;
-    cafe = data;
-  } else {
-    cafe = {
-      id: cafeJson.id,
-      name: cafeJson.name,
-      slug: cafeJson.slug,
-      stamps_required: cafeJson.stamps_required,
-      brand_color: cafeJson.brand_color,
-      tagline: cafeJson.tagline,
-      reward_label: cafeJson.reward_label,
-      theme_style: cafeJson.theme_style,
-    };
-  }
-
-  // 2) Cliente por public_id
-  let { data: customer } = await supabase
-    .from("customers")
-    .select("id, public_id")
-    .eq("public_id", publicId)
-    .maybeSingle();
-
-  if (!customer) {
-    const { data: created, error: createError } = await supabase
-      .from("customers")
-      .insert({ public_id: publicId })
-      .select("id, public_id")
-      .single();
-
-    if (createError) throw createError;
-    customer = created;
-  }
-
-  // 3) Tarjeta de fidelidad (cafe + customer)
-  let { data: card } = await supabase
-    .from("loyalty_cards")
-    .select("id, stamps_count, cards_completed")
-    .eq("cafe_id", cafe.id)
-    .eq("customer_id", customer.id)
-    .maybeSingle();
-
-  if (!card) {
-    const { data: createdCard, error: cardError } = await supabase
-      .from("loyalty_cards")
-      .insert({
-        cafe_id: cafe.id,
-        customer_id: customer.id,
-        stamps_count: 0,
-        cards_completed: 0,
-      })
-      .select("id, stamps_count, cards_completed")
-      .single();
-
-    if (cardError) throw cardError;
-    card = createdCard;
-  }
+  if (error) throw error;
 
   return {
-    publicId: customer.public_id,
-    customerId: customer.id,
-    cafeId: cafe.id,
-    cafeSlug: cafe.slug || cafeSlug,
-    stampsCount: card.stamps_count,
-    stampsRequired: cafe.stamps_required ?? BRAND.stampsRequired,
-    cardsCompleted: card.cards_completed ?? 0,
-    cafeName: cafe.name,
-    brandColor: cafe.brand_color || BRAND.color,
-    tagline: cafe.tagline || BRAND.tagline,
-    rewardLabel: cafe.reward_label || BRAND.rewardLabel,
+    publicId: data.public_id,
+    customerId: data.customer_id,
+    cafeId: data.cafe_id,
+    cafeSlug: data.cafe_slug || cafeSlug,
+    stampsCount: data.stamps_count ?? 0,
+    stampsRequired: data.stamps_required ?? BRAND.stampsRequired,
+    cardsCompleted: data.cards_completed ?? 0,
+    cafeName: data.cafe_name,
+    brandColor: data.brand_color || BRAND.color,
+    tagline: data.tagline || BRAND.tagline,
+    rewardLabel: data.reward_label || BRAND.rewardLabel,
     themeStyle: resolveThemeStyle(
-      cafe.slug || cafeSlug,
-      cafe.theme_style || "solid",
+      data.cafe_slug || cafeSlug,
+      data.theme_style || "solid",
     ),
     mode: "supabase",
   };
@@ -192,25 +127,22 @@ export async function fetchCafeMetrics() {
   return { ...data, mode: "supabase" };
 }
 
-/** Crea una petición NFC pendiente (cliente → barista). */
-export async function createNfcRequest({ cafeId, customerId, publicId }) {
+/** Crea una petición NFC pendiente (cliente → barista) vía RPC. */
+export async function createNfcRequest({
+  cafeSlug = getActiveCafeSlug(),
+  publicId,
+}) {
   if (!isSupabaseConfigured) {
     return { id: `local-${Date.now()}`, mode: "local" };
   }
 
-  const { data, error } = await supabase
-    .from("nfc_requests")
-    .insert({
-      cafe_id: cafeId,
-      customer_id: customerId,
-      public_id: publicId,
-      status: "esperando",
-    })
-    .select("id")
-    .single();
+  const { data, error } = await supabase.rpc("create_nfc_request", {
+    p_cafe_slug: cafeSlug,
+    p_public_id: publicId,
+  });
 
   if (error) throw error;
-  return { ...data, mode: "supabase" };
+  return { id: data.id, mode: "supabase" };
 }
 
 /** Escucha cambios de una petición NFC (aprobada / rechazada). */
@@ -466,49 +398,25 @@ export async function findCustomerByPublicId(
     };
   }
 
-  // Si hay sesión barista, usar su café
-  let slug = cafeSlug;
-  try {
-    const mine = await fetchMyCafe();
-    slug = mine.cafeSlug;
-  } catch {
-    // keep slug
+  const { data, error } = await supabase.rpc("get_customer_card", {
+    p_public_id: cleanId,
+  });
+
+  if (error) {
+    if (/no encontrado|Cliente no encontrado/i.test(error.message || "")) {
+      throw new Error(`No existe el cliente ${cleanId}.`);
+    }
+    throw error;
   }
-
-  const { data: cafe, error: cafeError } = await supabase
-    .from("cafes")
-    .select("id, name, stamps_required")
-    .eq("slug", slug)
-    .single();
-
-  if (cafeError) throw cafeError;
-
-  const { data: customer, error: customerError } = await supabase
-    .from("customers")
-    .select("id, public_id")
-    .eq("public_id", cleanId)
-    .maybeSingle();
-
-  if (customerError) throw customerError;
-  if (!customer) {
-    throw new Error(`No existe el cliente ${cleanId}.`);
-  }
-
-  const { data: card } = await supabase
-    .from("loyalty_cards")
-    .select("stamps_count, cards_completed")
-    .eq("cafe_id", cafe.id)
-    .eq("customer_id", customer.id)
-    .maybeSingle();
 
   return {
-    publicId: customer.public_id,
-    customerId: customer.id,
-    cafeId: cafe.id,
-    stampsCount: card?.stamps_count ?? 0,
-    stampsRequired: cafe.stamps_required ?? BRAND.stampsRequired,
-    cardsCompleted: card?.cards_completed ?? 0,
-    cafeName: cafe.name,
+    publicId: data.public_id,
+    customerId: data.customer_id,
+    cafeId: data.cafe_id,
+    stampsCount: data.stamps_count ?? 0,
+    stampsRequired: data.stamps_required ?? BRAND.stampsRequired,
+    cardsCompleted: data.cards_completed ?? 0,
+    cafeName: data.cafe_name,
     mode: "supabase",
   };
 }

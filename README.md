@@ -1,16 +1,85 @@
-# React + Vite
+# CupTrack
 
-This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
+Fidelidad digital para cafeterías. Una app, muchos cafés (`?cafe=slug`).
 
-Currently, two official plugins are available:
+- **Cliente:** `https://www.cuptrack.com/?cafe=cafe-demo`
+- **Admin:** `https://www.cuptrack.com/#admin`
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+## Stack
 
-## React Compiler
+React + Vite + Tailwind · Supabase (Auth, Postgres, Realtime) · Vercel
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+## Setup rápido
 
-## Expanding the Oxlint configuration
+### 1. Variables
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and Oxlint's TypeScript related rules in your project.
+```bash
+cp .env.example .env
+```
+
+Rellena `VITE_SUPABASE_URL` y `VITE_SUPABASE_ANON_KEY`.  
+Para el pitch: `VITE_DEMO=true`. En producción real: `VITE_DEMO=false`.
+
+En Vercel → Project → Settings → Environment Variables: las mismas claves.
+
+### 2. SQL (una sola fuente de verdad)
+
+En Supabase → **SQL Editor** → pega y ejecuta **todo**:
+
+[`supabase/cuptrack.sql`](supabase/cuptrack.sql)
+
+Eso crea/actualiza tablas, **RLS endurecido**, RPCs y cafés demo (Café Demo, Bean & Co, Norte, Layers, ETMA).
+
+> Los archivos antiguos (`schema.sql`, `secure_admin.sql`, `multi_cafe.sql`, etc.) quedan como histórico. **No los re-ejecutes** después de `cuptrack.sql` (pueden reabrir permisos).
+
+### 3. Auth barista
+
+1. Authentication → Users → Add user (email + password)
+2. (Recomendado) desactiva sign-ups públicos
+3. Query **nueva**:
+
+```sql
+select public.link_staff_by_email(
+  'barista@tucafe.com',
+  'cafe-demo',
+  'owner'
+);
+```
+
+### 4. URLs Auth (dominio)
+
+Authentication → URL Configuration:
+
+- Site URL: `https://www.cuptrack.com`
+- Redirect URLs: `https://www.cuptrack.com/**`, `https://cuptrack.com/**`, y tu `*.vercel.app/**` si lo usas
+
+### 5. Local
+
+```bash
+npm install
+npm run dev
+```
+
+## Demos (con `VITE_DEMO=true`)
+
+| Café | URL |
+|------|-----|
+| Café Demo | `/?cafe=cafe-demo` |
+| Bean & Co | `/?cafe=bean-co` |
+| Norte | `/?cafe=norte` |
+| the Layers | `/?cafe=layers` |
+| ETMA Bakery | `/?cafe=etma` |
+
+## Seguridad (resumen)
+
+- Sellos / aprobar NFC: solo **barista autenticado** de ese café
+- Cliente: `ensure_customer_session` + `create_nfc_request` + `start_new_card` (RPC)
+- Tablas: sin INSERT/UPDATE/DELETE anónimo directo a sellos
+- `link_staff_by_email`: solo SQL editor / service_role
+
+## Scripts legacy
+
+No usar en proyectos nuevos:
+
+- `schema.sql`, `add_stamp_rpc.sql`, `card_complete_migration.sql`
+- `fix_card_sync.sql`, `secure_admin.sql`, `multi_cafe.sql`, `demo_cafes.sql`

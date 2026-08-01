@@ -1,6 +1,7 @@
 -- =============================================================================
+-- LEGACY — No usar. Fuente de verdad: supabase/cuptrack.sql
+-- =============================================================================
 -- Stamp — Proteger acciones de admin (solo barista autenticado)
--- Ejecuta UNA VEZ en Supabase SQL Editor.
 -- =============================================================================
 --
 -- 1) Authentication → Users → Add user

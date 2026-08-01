@@ -1,6 +1,5 @@
 -- =============================================================================
--- Fix sync cartón nuevo (cliente ↔ admin)
--- Ejecuta esto UNA VEZ en Supabase SQL Editor.
+-- LEGACY — No usar. Fuente de verdad: supabase/cuptrack.sql
 -- =============================================================================
 
 -- start_new_card: si el cliente ya empezó el cartón (stamps = 0), no falla
