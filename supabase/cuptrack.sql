@@ -1163,8 +1163,8 @@ values
   ('Café Demo', 'cafe-demo', '#178e3c', 6, 'Especialidad de barrio', '1 café gratis', 'solid'),
   ('Bean & Co', 'bean-co', '#B45309', 6, 'Espresso & community', '1 bebida a elegir', 'solid'),
   ('Norte', 'norte', '#0E7490', 8, 'Origen y tueste', '1 filter gratis', 'solid'),
-  ('the Layers', 'layers', '#EF4444', 6, 'Café con capas de color', '1 café gratis', 'rainbow'),
-  ('ETMA Bakery', 'etma', '#44403C', 8, 'Bagels & breakfast', '1 café o bagel', 'bakery')
+  ('Prism Café', 'prism', '#EF4444', 6, 'Café con color', '1 café gratis', 'rainbow'),
+  ('Hearth Bakery', 'hearth', '#44403C', 8, 'Pan y café de mañana', '1 café o pan', 'bakery')
 on conflict (slug) do update set
   name = excluded.name,
   brand_color = excluded.brand_color,

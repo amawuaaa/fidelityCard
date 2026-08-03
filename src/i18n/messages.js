@@ -46,8 +46,8 @@ export const MESSAGES = {
     "install.androidHome": "Añadir a inicio",
     "install.close": "Cerrar",
 
-    "demo.targets": "Cafés objetivo",
-    "demo.targetsHint": "Personalización real para el pitch",
+    "demo.targets": "Ejemplos personalizados",
+    "demo.targetsHint": "Demos ficticios con look propio",
     "demo.more": "Más demos",
     "demo.stamps": "{n} sellos",
     "demo.rainbow": "arcoíris",
@@ -174,8 +174,8 @@ export const MESSAGES = {
     "install.androidHome": "Add to Home Screen",
     "install.close": "Close",
 
-    "demo.targets": "Target cafés",
-    "demo.targetsHint": "Real branding for the pitch",
+    "demo.targets": "Custom examples",
+    "demo.targetsHint": "Fictional demos with their own look",
     "demo.more": "More demos",
     "demo.stamps": "{n} stamps",
     "demo.rainbow": "rainbow",

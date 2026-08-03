@@ -45,7 +45,7 @@
   --tw-ring-color: var(--brand);
 }
 
-/* the Layers — acento sólido (el arcoíris va en las letras del nombre) */
+/* Prism (demo rainbow) — acento sólido; el arcoíris va en el wordmark */
 html[data-theme="rainbow"] .bg-brand-soft {
   background-color: color-mix(in srgb, #ef4444 12%, transparent);
 }
@@ -59,7 +59,7 @@ html[data-theme="rainbow"] .shadow-brand {
   --tw-shadow-color: color-mix(in srgb, #ef4444 35%, transparent);
 }
 
-/* ETMA Bakery — fondo crema / carbón */
+/* Hearth Bakery (demo) — fondo crema / carbón */
 html[data-theme="bakery"] .bg-brand-soft {
   background-color: color-mix(in srgb, var(--brand) 10%, #f5f0e6);
 }

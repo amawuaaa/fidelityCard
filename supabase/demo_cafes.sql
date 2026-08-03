@@ -1,14 +1,14 @@
 -- =============================================================================
 -- LEGACY — No usar. Fuente de verdad: supabase/cuptrack.sql
 -- =============================================================================
--- CupTrack — Cafés de demostración + objetivos (Layers, ETMA)
+-- LEGACY — CupTrack demos. Prefer cuptrack.sql + rename_demo_targets.sql.
 -- =============================================================================
 -- Links:
 --   /?cafe=cafe-demo  → verde
 --   /?cafe=bean-co    → ámbar
 --   /?cafe=norte      → teal, 8 sellos
---   /?cafe=layers     → arcoíris (the Layers)
---   /?cafe=etma       → bakery charcoal (ETMA)
+--   /?cafe=prism      → arcoíris (Prism Café, ficticio)
+--   /?cafe=hearth     → bakery (Hearth Bakery, ficticio)
 -- =============================================================================
 
 alter table public.cafes
@@ -58,11 +58,11 @@ on conflict (slug) do update set
   reward_label = excluded.reward_label,
   theme_style = excluded.theme_style;
 
--- the Layers — tema arcoíris
+-- Prism Café — demo arcoíris (ficticio)
 insert into public.cafes (name, slug, brand_color, stamps_required, tagline, reward_label, theme_style)
 values (
-  'the Layers', 'layers', '#EF4444', 6,
-  'Café con capas de color', '1 café gratis', 'rainbow'
+  'Prism Café', 'prism', '#EF4444', 6,
+  'Café con color', '1 café gratis', 'rainbow'
 )
 on conflict (slug) do update set
   name = excluded.name,
@@ -72,11 +72,11 @@ on conflict (slug) do update set
   reward_label = excluded.reward_label,
   theme_style = excluded.theme_style;
 
--- ETMA Bakery — charcoal / crema
+-- Hearth Bakery — demo bakery (ficticio)
 insert into public.cafes (name, slug, brand_color, stamps_required, tagline, reward_label, theme_style)
 values (
-  'ETMA Bakery', 'etma', '#44403C', 8,
-  'Bagels & breakfast', '1 café o bagel', 'bakery'
+  'Hearth Bakery', 'hearth', '#44403C', 8,
+  'Pan y café de mañana', '1 café o pan', 'bakery'
 )
 on conflict (slug) do update set
   name = excluded.name,

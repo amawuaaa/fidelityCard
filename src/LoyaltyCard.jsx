@@ -25,7 +25,7 @@ import CupLogo from "./components/CupLogo.jsx";
 import DemoCafeSwitcher from "./components/DemoCafeSwitcher.jsx";
 import InstallHint from "./components/InstallHint.jsx";
 import LanguageToggle from "./components/LanguageToggle.jsx";
-import LayersWordmark from "./components/LayersWordmark.jsx";
+import RainbowWordmark from "./components/RainbowWordmark.jsx";
 
 const NFC_TIMEOUT_MS = 90_000;
 
@@ -244,8 +244,8 @@ export default function LoyaltyCard() {
     lang,
   );
 
-  const isLayers = cafeSlug === "layers" || themeStyle === "rainbow";
-  const isBakery = cafeSlug === "etma" || themeStyle === "bakery";
+  const isRainbow = themeStyle === "rainbow";
+  const isBakery = themeStyle === "bakery";
 
   return (
     <div className="min-h-dvh bg-[var(--page-bg)] text-gray-900">
@@ -260,9 +260,9 @@ export default function LoyaltyCard() {
 
         <header className="mb-8 text-center">
           <div className="mb-5 flex items-center justify-center gap-1.5">
-            {isLayers ? (
+            {isRainbow ? (
               <h1 className="text-2xl">
-                <LayersWordmark />
+                <RainbowWordmark text="PRISM" />
               </h1>
             ) : (
               <h1 className="text-xl font-extrabold tracking-[0.18em] text-gray-900">

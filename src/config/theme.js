@@ -1,13 +1,13 @@
 import { BRAND } from "./brand.js";
 
-/** Paleta arcoíris inspirada en the Layers */
+/** Paleta arcoíris para el demo "Prism" */
 export const RAINBOW_COLORS = [
-  "#C084FC", // lavanda (L)
-  "#FACC15", // amarillo (A)
-  "#EF4444", // rojo (Y)
-  "#F472B6", // rosa (E)
-  "#16A34A", // verde (R)
-  "#38BDF8", // cielo (S)
+  "#C084FC",
+  "#FACC15",
+  "#EF4444",
+  "#F472B6",
+  "#16A34A",
+  "#38BDF8",
 ];
 
 export const RAINBOW_GRADIENT =
@@ -16,6 +16,7 @@ export const RAINBOW_GRADIENT =
 /**
  * Catálogo demo / pitch.
  * themeStyle: solid | rainbow | bakery
+ * Los de group "target" son FICTICIOS (muestran personalización fuerte).
  */
 export const DEMO_CAFES = [
   {
@@ -55,26 +56,26 @@ export const DEMO_CAFES = [
     group: "demo",
   },
   {
-    name: "the Layers",
-    slug: "layers",
+    name: "Prism Café",
+    slug: "prism",
     brandColor: "#EF4444",
     stampsRequired: 6,
-    tagline: "Café con capas de color",
-    taglineEn: "Coffee in layers of color",
+    tagline: "Café con color",
+    taglineEn: "Coffee in color",
     rewardLabel: "1 café gratis",
     rewardLabelEn: "1 free coffee",
     themeStyle: "rainbow",
     group: "target",
   },
   {
-    name: "ETMA Bakery",
-    slug: "etma",
+    name: "Hearth Bakery",
+    slug: "hearth",
     brandColor: "#44403C",
     stampsRequired: 8,
-    tagline: "Bagels & breakfast",
-    taglineEn: "Bagels & breakfast",
-    rewardLabel: "1 café o bagel",
-    rewardLabelEn: "1 coffee or bagel",
+    tagline: "Pan y café de mañana",
+    taglineEn: "Bread & morning coffee",
+    rewardLabel: "1 café o pan",
+    rewardLabelEn: "1 coffee or pastry",
     themeStyle: "bakery",
     group: "target",
   },
@@ -83,12 +84,13 @@ export const DEMO_CAFES = [
 /** Traducciones rápidas de textos de café conocidos (DB en ES). */
 const COPY_EN = {
   "Especialidad de barrio": "Neighborhood specialty",
-  "Café con capas de color": "Coffee in layers of color",
+  "Café con color": "Coffee in color",
+  "Pan y café de mañana": "Bread & morning coffee",
   "Origen y tueste": "Origin & roast",
   "1 café gratis": "1 free coffee",
   "1 bebida a elegir": "1 drink of your choice",
   "1 filter gratis": "1 free filter",
-  "1 café o bagel": "1 coffee or bagel",
+  "1 café o pan": "1 coffee or pastry",
   "tu café gratis": "your free coffee",
 };
 

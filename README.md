@@ -36,7 +36,8 @@ En Vercel → Settings → Environment Variables: las mismas claves.
 2. [`supabase/cancel_nfc.sql`](supabase/cancel_nfc.sql) — cancelar petición  
 3. [`supabase/remove_stamp.sql`](supabase/remove_stamp.sql) — si aún no lo tienes  
 4. [`supabase/hardening_v3.sql`](supabase/hardening_v3.sql) — **seguridad + código corto de caja** (obligatorio)  
-5. [`supabase/fix_claim_token.sql`](supabase/fix_claim_token.sql) — si ves `gen_random_bytes does not exist` (PWA iPhone)
+5. [`supabase/fix_claim_token.sql`](supabase/fix_claim_token.sql) — si ves `gen_random_bytes does not exist` (PWA iPhone)  
+6. [`supabase/rename_demo_targets.sql`](supabase/rename_demo_targets.sql) — si aún tienes demos `layers`/`etma` públicos
 
 `hardening_v3` cierra lecturas anónimas, añade `claim_token` y código de 4 dígitos por café.
 
@@ -78,8 +79,10 @@ npm run dev
 | Café Demo | `/?cafe=cafe-demo` |
 | Bean & Co | `/?cafe=bean-co` |
 | Norte | `/?cafe=norte` |
-| the Layers | `/?cafe=layers` |
-| ETMA Bakery | `/?cafe=etma` |
+| Prism Café (demo rainbow) | `/?cafe=prism` |
+| Hearth Bakery (demo bakery) | `/?cafe=hearth` |
+
+> No uses marcas reales de clientes en demos públicos. Si tenías `layers`/`etma`, ejecuta [`supabase/rename_demo_targets.sql`](supabase/rename_demo_targets.sql).
 
 ## Seguridad (resumen)
 
