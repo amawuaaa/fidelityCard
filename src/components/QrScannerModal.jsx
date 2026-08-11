@@ -10,10 +10,12 @@ import { useT } from "../i18n/LanguageContext.jsx";
  */
 export default function QrScannerModal({ open, onClose, onScan }) {
   const t = useT();
-  const [status, setStatus] = useState("Abriendo cámara…");
+  const [status, setStatus] = useState("");
   const [cameraError, setCameraError] = useState(null);
   const [manualId, setManualId] = useState("");
   const [facingMode, setFacingMode] = useState("environment");
+  const tRef = useRef(t);
+  tRef.current = t;
 
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
@@ -33,7 +35,7 @@ export default function QrScannerModal({ open, onClose, onScan }) {
     handledRef.current = false;
     setCameraError(null);
     setManualId("");
-    setStatus("Abriendo cámara…");
+    setStatus(tRef.current("scan.opening"));
 
     let cancelled = false;
 
@@ -47,7 +49,7 @@ export default function QrScannerModal({ open, onClose, onScan }) {
     const emit = async (text) => {
       if (handledRef.current || cancelled) return;
       handledRef.current = true;
-      setStatus("¡Código detectado! Buscando cliente…");
+      setStatus(tRef.current("scan.detected"));
       try {
         await onScanRef.current?.(String(text).trim());
         stopStream();
@@ -55,7 +57,7 @@ export default function QrScannerModal({ open, onClose, onScan }) {
         // El padre no encontró cliente: seguimos escaneando
         if (!cancelled) {
           handledRef.current = false;
-          setStatus("QR leído pero no válido. Prueba de nuevo…");
+          setStatus(tRef.current("scan.retry"));
           rafRef.current = requestAnimationFrame(scanLoop);
         }
       }
@@ -120,7 +122,7 @@ export default function QrScannerModal({ open, onClose, onScan }) {
 
     const startCamera = async (facing) => {
       stopStream();
-      setStatus("Abriendo cámara…");
+      setStatus(tRef.current("scan.opening"));
       setCameraError(null);
 
       try {
@@ -144,14 +146,12 @@ export default function QrScannerModal({ open, onClose, onScan }) {
 
         video.srcObject = stream;
         await video.play();
-        setStatus("Buscando QR… acerca el código");
+        setStatus(tRef.current("scan.searching"));
         rafRef.current = requestAnimationFrame(scanLoop);
       } catch (err) {
         console.error(err);
         if (!cancelled) {
-          setCameraError(
-            "No se pudo abrir la cámara. Usa “Foto del QR” o escribe el ID.",
-          );
+          setCameraError(tRef.current("scan.noCamera"));
           setStatus("");
         }
       }
@@ -167,7 +167,7 @@ export default function QrScannerModal({ open, onClose, onScan }) {
 
   const decodeImageFile = async (file) => {
     if (!file) return;
-    setStatus("Leyendo imagen…");
+    setStatus(t("scan.readingImage"));
     setCameraError(null);
 
     try {
@@ -185,25 +185,23 @@ export default function QrScannerModal({ open, onClose, onScan }) {
       });
 
       if (!code?.data) {
-        setCameraError(
-          "No se encontró un QR en la foto. Prueba más cerca, con buena luz y sin reflejos.",
-        );
-        setStatus("Buscando QR…");
+        setCameraError(t("scan.noQrInPhoto"));
+        setStatus(t("scan.searchingShort"));
         return;
       }
 
       handledRef.current = true;
-      setStatus("¡Código detectado!");
+      setStatus(t("scan.detectedShort"));
       try {
         await onScanRef.current?.(code.data.trim());
-        streamRef.current?.getTracks().forEach((t) => t.stop());
+        streamRef.current?.getTracks().forEach((track) => track.stop());
       } catch {
         handledRef.current = false;
-        setStatus("QR leído pero no válido. Prueba otra foto…");
+        setStatus(t("scan.retryPhoto"));
       }
     } catch (err) {
       console.error(err);
-      setCameraError("No se pudo leer la imagen.");
+      setCameraError(t("scan.imageError"));
     }
   };
 

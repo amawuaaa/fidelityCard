@@ -268,28 +268,53 @@ export async function fetchCardSnapshot(cafeSlug, publicId) {
 
 /**
  * Polling de sellos del cliente (sustituye Realtime anon sobre loyalty_cards).
+ *
+ * En pantalla: 900 ms → el sello aparece casi al instante (momento de la demo).
+ * En segundo plano: 15 s → no quema batería ni requests de Supabase.
  */
-export function pollLoyaltyCard({ cafeSlug, publicId }, onUpdate, intervalMs = 2500) {
+export function pollLoyaltyCard(
+  { cafeSlug, publicId },
+  onUpdate,
+  { activeMs = 900, idleMs = 15_000 } = {},
+) {
   if (!isSupabaseConfigured || !cafeSlug || !publicId) {
     return () => {};
   }
 
   let stopped = false;
+  let timer = null;
+
+  const schedule = () => {
+    if (stopped) return;
+    if (timer) window.clearTimeout(timer);
+    timer = window.setTimeout(tick, document.hidden ? idleMs : activeMs);
+  };
+
   const tick = async () => {
     if (stopped) return;
-    try {
-      const snap = await fetchCardSnapshot(cafeSlug, publicId);
-      if (!stopped && snap) onUpdate(snap);
-    } catch (err) {
-      console.error(err);
+    if (!document.hidden) {
+      try {
+        const snap = await fetchCardSnapshot(cafeSlug, publicId);
+        if (!stopped && snap) onUpdate(snap);
+      } catch (err) {
+        console.error(err);
+      }
     }
+    schedule();
+  };
+
+  // Al volver a primer plano: refresco inmediato, sin esperar al siguiente tick
+  const onVisibility = () => {
+    if (!document.hidden) tick();
   };
 
   tick();
-  const timer = window.setInterval(tick, intervalMs);
+  document.addEventListener("visibilitychange", onVisibility);
+
   return () => {
     stopped = true;
-    window.clearInterval(timer);
+    if (timer) window.clearTimeout(timer);
+    document.removeEventListener("visibilitychange", onVisibility);
   };
 }
 
@@ -504,10 +529,7 @@ export function parseCustomerPublicId(raw) {
 }
 
 /** Busca un cliente y su tarjeta en un café (usr_… o código corto). */
-export async function findCustomerByPublicId(
-  publicId,
-  cafeSlug = getActiveCafeSlug(),
-) {
+export async function findCustomerByPublicId(publicId) {
   const cleanId = parseCustomerPublicId(publicId);
   if (!cleanId) {
     throw new Error("Código no válido. Usa 4 dígitos (ej. 4821) o usr_…");
@@ -553,10 +575,7 @@ export async function findCustomerByPublicId(
  * Añade +1 sello directo (flujo QR / búsqueda manual).
  * El café lo determina el barista autenticado en el servidor.
  */
-export async function addStampByPublicId(
-  publicId,
-  cafeSlug = getActiveCafeSlug(),
-) {
+export async function addStampByPublicId(publicId) {
   const cleanId = parseCustomerPublicId(publicId);
   if (!cleanId) {
     throw new Error("ID de cliente no válido.");
@@ -572,8 +591,10 @@ export async function addStampByPublicId(
     };
   }
 
+  // p_cafe_slug: null a propósito. El servidor deriva el café desde auth.uid();
+  // mandar el slug de localStorage podía bloquear sellos si estaba obsoleto.
   const { data, error } = await supabase.rpc("add_stamp_by_public_id", {
-    p_cafe_slug: cafeSlug,
+    p_cafe_slug: null,
     p_public_id: cleanId,
   });
 
@@ -582,10 +603,7 @@ export async function addStampByPublicId(
 }
 
 /** Quita 1 sello (corregir error). Solo barista del café. */
-export async function removeStampByPublicId(
-  publicId,
-  cafeSlug = getActiveCafeSlug(),
-) {
+export async function removeStampByPublicId(publicId) {
   const cleanId = parseCustomerPublicId(publicId);
   if (!cleanId) {
     throw new Error("ID de cliente no válido.");
@@ -600,8 +618,9 @@ export async function removeStampByPublicId(
     };
   }
 
+  // p_cafe_slug: null — igual que add_stamp, el café sale de la sesión del barista.
   const { data, error } = await supabase.rpc("remove_stamp_by_public_id", {
-    p_cafe_slug: cafeSlug,
+    p_cafe_slug: null,
     p_public_id: cleanId,
   });
 

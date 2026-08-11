@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useRef, useState } from "react";
 import { Camera, Check, LogOut, Search, X } from "lucide-react";
 import { BRAND } from "./config/brand.js";
 import { applyBrandToDocument } from "./config/theme.js";
@@ -23,12 +23,14 @@ import {
   subscribePendingNfcRequests,
 } from "./lib/loyaltyApi.js";
 import { useT } from "./i18n/LanguageContext.jsx";
-import QrScannerModal from "./components/QrScannerModal.jsx";
 import ManualSearchModal from "./components/ManualSearchModal.jsx";
 import CustomerResultCard from "./components/CustomerResultCard.jsx";
 import AdminLogin from "./components/AdminLogin.jsx";
 import CafeMetrics from "./components/CafeMetrics.jsx";
 import LanguageToggle from "./components/LanguageToggle.jsx";
+
+// jsQR (~180 KB) solo se descarga al abrir el escáner por primera vez.
+const QrScannerModal = lazy(() => import("./components/QrScannerModal.jsx"));
 
 /**
  * Panel de Administrador (Barista) — Demo multi-cafetería
@@ -140,15 +142,11 @@ function AdminPanelInner({ onLogout }) {
       setError(null);
     } catch (err) {
       console.error(err);
-      setError(
-        err.message?.includes("vinculado") || err.message?.includes("link_staff")
-          ? err.message
-          : "No se pudo cargar el panel. ¿Está tu usuario vinculado a un café?",
-      );
+      setError(t("admin.genericError"));
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [t]);
 
   useEffect(() => {
     cargarBandeja();
@@ -201,25 +199,25 @@ function AdminPanelInner({ onLogout }) {
     return customer;
   }, []);
 
-  const cargarCliente = useCallback(async (rawId) => {
-    setSearching(true);
-    setError(null);
-    try {
-      const customer = await findCustomerByPublicId(rawId);
-      setClienteSeleccionado(customer);
-      setScannerOpen(false);
-      setSearchOpen(false);
-    } catch (err) {
-      console.error(err);
-      // No cerramos el escáner si falló el parseo: el usuario puede reintentar
-      setError(
-        `${err.message || "No se pudo encontrar el cliente."} (leído: "${String(rawId).slice(0, 60)}")`,
-      );
-      setSearchOpen(false);
-    } finally {
-      setSearching(false);
-    }
-  }, []);
+  const cargarCliente = useCallback(
+    async (rawId) => {
+      setSearching(true);
+      setError(null);
+      try {
+        const customer = await findCustomerByPublicId(rawId);
+        setClienteSeleccionado(customer);
+        setScannerOpen(false);
+        setSearchOpen(false);
+      } catch (err) {
+        console.error(err);
+        setError(t("admin.customerNotFound"));
+        setSearchOpen(false);
+      } finally {
+        setSearching(false);
+      }
+    },
+    [t],
+  );
 
   const handleQrScan = useCallback(
     async (decodedText) => {
@@ -232,16 +230,18 @@ function AdminPanelInner({ onLogout }) {
         setSearchOpen(false);
       } catch (err) {
         console.error(err);
-        setError(
-          `${err.message || "No se pudo encontrar el cliente."} (leído: "${String(decodedText).slice(0, 60)}")`,
-        );
+        setError(t("admin.customerNotFound"));
         throw err;
       } finally {
         setSearching(false);
       }
     },
-    [],
+    [t],
   );
+
+  // Lo que ve el barista: el código corto de caja, nunca el usr_ interno
+  const idVisible =
+    clienteSeleccionado?.shortCode || clienteSeleccionado?.publicId;
 
   const handleRemoveStamp = async () => {
     if (!clienteSeleccionado || addingStamp) return;
@@ -264,11 +264,11 @@ function AdminPanelInner({ onLogout }) {
             }
           : prev,
       );
-      mostrarExito(`Sello quitado · ${clienteSeleccionado.publicId}`);
+      mostrarExito(t("admin.toastRemoved", { id: idVisible }));
       if (isSupabaseConfigured) await cargarBandeja();
     } catch (err) {
       console.error(err);
-      setError(err?.message || "No se pudo quitar el sello.");
+      setError(t("admin.genericError"));
       try {
         await refrescarCliente(clienteSeleccionado.publicId);
       } catch {
@@ -311,41 +311,26 @@ function AdminPanelInner({ onLogout }) {
       );
 
       if (result.auto_started_new_card) {
-        mostrarExito(
-          `Nuevo cartón + 1 punto · ${clienteSeleccionado.publicId}`,
-        );
+        mostrarExito(t("admin.toastNewCardPlus", { id: idVisible }));
       } else if (
         result.card_completed ||
         nuevoCount >= clienteSeleccionado.stampsRequired
       ) {
-        mostrarExito(
-          `Cartón completo · ${clienteSeleccionado.publicId} — café gratis listo`,
-        );
+        mostrarExito(t("admin.toastCardComplete", { id: idVisible }));
       } else {
-        mostrarExito(`Punto añadido a ${clienteSeleccionado.publicId}`);
+        mostrarExito(t("admin.toastStampAdded", { id: idVisible }));
       }
 
       if (isSupabaseConfigured) await cargarBandeja();
     } catch (err) {
       console.error(err);
       const msg = err?.message || "";
-      if (
-        msg.includes("No autorizado") ||
-        msg.includes("JWT") ||
-        msg.includes("permission")
-      ) {
-        setError("Sesión expirada o sin permiso. Cierra sesión y vuelve a entrar.");
-      } else if (
-        msg.includes("add_stamp_by_public_id") ||
-        msg.includes("function") ||
-        msg.includes("card_complete")
-      ) {
-        setError(
-          "Falta configurar permisos de barista en la base de datos.",
-        );
-      } else {
-        setError(msg || "No se pudo añadir el punto.");
-      }
+      // Solo este caso es accionable por el barista; el resto es ruido técnico
+      setError(
+        /No autorizado|JWT|permission/i.test(msg)
+          ? t("admin.sessionExpired")
+          : t("admin.genericError"),
+      );
       // Re-sincroniza UI con la BD
       try {
         await refrescarCliente(clienteSeleccionado.publicId);
@@ -377,16 +362,12 @@ function AdminPanelInner({ onLogout }) {
       );
       mostrarExito(
         result.already_reset
-          ? `El cliente ya tenía cartón nuevo · ${clienteSeleccionado.publicId}`
-          : `Nuevo cartón para ${clienteSeleccionado.publicId}`,
+          ? t("admin.toastAlreadyReset", { id: idVisible })
+          : t("admin.toastNewCard", { id: idVisible }),
       );
     } catch (err) {
       console.error(err);
-      setError(
-        err.message?.includes("start_new_card") || err.message?.includes("function")
-          ? "No se pudo empezar el cartón. Revisa la configuración del panel."
-          : err.message || "No se pudo empezar el cartón nuevo.",
-      );
+      setError(t("admin.genericError"));
       try {
         await refrescarCliente(clienteSeleccionado.publicId);
       } catch {
@@ -627,11 +608,15 @@ function AdminPanelInner({ onLogout }) {
         </footer>
       </main>
 
-      <QrScannerModal
-        open={scannerOpen}
-        onClose={() => setScannerOpen(false)}
-        onScan={handleQrScan}
-      />
+      {scannerOpen && (
+        <Suspense fallback={null}>
+          <QrScannerModal
+            open={scannerOpen}
+            onClose={() => setScannerOpen(false)}
+            onScan={handleQrScan}
+          />
+        </Suspense>
+      )}
 
       <ManualSearchModal
         open={searchOpen}

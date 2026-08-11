@@ -49,7 +49,9 @@ export default function LoyaltyCard() {
   const [showComplete, setShowComplete] = useState(false);
   const [startingNew, setStartingNew] = useState(false);
   const [qrValue, setQrValue] = useState("");
+  const [justStamped, setJustStamped] = useState(null);
   const stopPollRequestRef = useRef(null);
+  const celebrateTimerRef = useRef(null);
   const nfcTimeoutRef = useRef(null);
   const pendingRequestIdRef = useRef(null);
   const prevStampsRef = useRef(0);
@@ -105,6 +107,22 @@ export default function LoyaltyCard() {
           },
           (card) => {
             const next = card.stampsCount;
+            // Sello nuevo → vibración + "pop" en el círculo que acaba de caer
+            if (next > prevStampsRef.current) {
+              try {
+                navigator.vibrate?.([12, 40, 18]);
+              } catch {
+                // el navegador no soporta vibración
+              }
+              setJustStamped(next - 1);
+              if (celebrateTimerRef.current) {
+                window.clearTimeout(celebrateTimerRef.current);
+              }
+              celebrateTimerRef.current = window.setTimeout(
+                () => setJustStamped(null),
+                700,
+              );
+            }
             setCafesComprados(next);
             if (card.shortCode) setShortCode(card.shortCode);
             if (typeof card.cardsCompleted === "number") {
@@ -136,6 +154,9 @@ export default function LoyaltyCard() {
       stopCardPoll();
       if (stopPollRequestRef.current) stopPollRequestRef.current();
       if (nfcTimeoutRef.current) window.clearTimeout(nfcTimeoutRef.current);
+      if (celebrateTimerRef.current) {
+        window.clearTimeout(celebrateTimerRef.current);
+      }
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps -- sesión una vez al montar
   }, []);
@@ -324,22 +345,28 @@ export default function LoyaltyCard() {
               const rainbowFill = comprado
                 ? stampFillStyle(themeStyle, index)
                 : undefined;
+              const recienSellado = justStamped === index;
 
               return (
                 <div
                   key={index}
                   className={[
-                    "flex aspect-square items-center justify-center rounded-full transition duration-500",
-                    comprado && !rainbowFill
-                      ? "scale-105 bg-brand shadow-sm"
-                      : "",
-                    comprado && rainbowFill ? "scale-105 shadow-sm" : "",
+                    "flex aspect-square items-center justify-center rounded-full transition-all duration-300 ease-out",
+                    recienSellado
+                      ? "scale-125 ring-4 ring-brand/30"
+                      : comprado
+                        ? "scale-105"
+                        : "",
+                    comprado && !rainbowFill ? "bg-brand shadow-sm" : "",
+                    comprado && rainbowFill ? "shadow-sm" : "",
                     !comprado
                       ? isBakery
                         ? "bg-[#E8E0D4]"
                         : "bg-gray-100"
                       : "",
-                    cartonCompleto && comprado ? "animate-pulse" : "",
+                    cartonCompleto && comprado && !recienSellado
+                      ? "animate-pulse"
+                      : "",
                   ].join(" ")}
                   style={rainbowFill}
                 >
@@ -400,19 +427,11 @@ export default function LoyaltyCard() {
             ) : (
               <div className="size-40 animate-pulse rounded-xl bg-stone-100" />
             )}
-            <p className="mt-3 text-xs font-bold text-gray-400">
-              {userSession} · {cafeSlug}
-            </p>
           </div>
 
           <p className="mt-4 text-center text-sm font-medium text-gray-500">
             {t("card.showQr")}
           </p>
-
-          <div className="mt-3 inline-flex items-center gap-1.5 rounded-full bg-white px-3.5 py-1.5 text-xs font-bold text-gray-600 shadow-sm">
-            <span className="size-1.5 rounded-full bg-brand" aria-hidden />
-            ID: {userSession ?? "…"}
-          </div>
 
           <button
             type="button"

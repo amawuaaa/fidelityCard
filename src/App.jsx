@@ -1,6 +1,8 @@
-import { useEffect, useState } from "react";
-import AdminPanel from "./AdminPanel.jsx";
+import { lazy, Suspense, useEffect, useState } from "react";
 import LoyaltyCard from "./LoyaltyCard.jsx";
+
+// El panel de barista (con el escáner) no viaja al móvil del cliente.
+const AdminPanel = lazy(() => import("./AdminPanel.jsx"));
 
 /**
  * Router mínimo por hash:
@@ -21,5 +23,15 @@ export default function App() {
     return () => window.removeEventListener("hashchange", onHashChange);
   }, []);
 
-  return vista === "admin" ? <AdminPanel /> : <LoyaltyCard />;
+  if (vista !== "admin") return <LoyaltyCard />;
+
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-dvh bg-stone-100" aria-busy="true" />
+      }
+    >
+      <AdminPanel />
+    </Suspense>
+  );
 }
