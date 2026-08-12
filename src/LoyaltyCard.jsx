@@ -20,6 +20,7 @@ import {
   startNewCard,
 } from "./lib/loyaltyApi.js";
 import { celebrateStamp, unlockAudio } from "./lib/feedback.js";
+import { applyCafeManifest } from "./lib/pwa.js";
 import { useLang, useT } from "./i18n/LanguageContext.jsx";
 import CardCompleteModal from "./components/CardCompleteModal.jsx";
 import CupLogo from "./components/CupLogo.jsx";
@@ -81,6 +82,12 @@ export default function LoyaltyCard() {
         if (cancelled) return;
 
         applyBrandToDocument(session.brandColor, session.themeStyle);
+        // La PWA instalada abre en la cartilla de SU café y lleva su nombre
+        applyCafeManifest({
+          cafeName: session.cafeName,
+          cafeSlug: session.cafeSlug || slug,
+          brandColor: session.brandColor,
+        });
         setUserSession(session.publicId);
         setShortCode(session.shortCode || null);
         setCafeSlug(session.cafeSlug || slug);
