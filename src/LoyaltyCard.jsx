@@ -19,6 +19,7 @@ import {
   pollNfcRequest,
   startNewCard,
 } from "./lib/loyaltyApi.js";
+import { celebrateStamp, unlockAudio } from "./lib/feedback.js";
 import { useLang, useT } from "./i18n/LanguageContext.jsx";
 import CardCompleteModal from "./components/CardCompleteModal.jsx";
 import CupLogo from "./components/CupLogo.jsx";
@@ -107,13 +108,9 @@ export default function LoyaltyCard() {
           },
           (card) => {
             const next = card.stampsCount;
-            // Sello nuevo → vibración + "pop" en el círculo que acaba de caer
+            // Sello nuevo → sonido + vibración + "pop" en el círculo que cae
             if (next > prevStampsRef.current) {
-              try {
-                navigator.vibrate?.([12, 40, 18]);
-              } catch {
-                // el navegador no soporta vibración
-              }
+              celebrateStamp();
               setJustStamped(next - 1);
               if (celebrateTimerRef.current) {
                 window.clearTimeout(celebrateTimerRef.current);
@@ -159,6 +156,14 @@ export default function LoyaltyCard() {
       }
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps -- sesión una vez al montar
+  }, []);
+
+  // El sello llega por polling, sin gesto del usuario. Si no desbloqueamos el
+  // audio en el primer toque, el navegador silencia el sonido para siempre.
+  useEffect(() => {
+    const unlock = () => unlockAudio();
+    window.addEventListener("pointerdown", unlock, { once: true });
+    return () => window.removeEventListener("pointerdown", unlock);
   }, []);
 
   const handleCancelNfc = async ({

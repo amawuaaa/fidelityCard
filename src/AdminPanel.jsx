@@ -22,6 +22,7 @@ import {
   subscribeLoyaltyCard,
   subscribePendingNfcRequests,
 } from "./lib/loyaltyApi.js";
+import { celebrateStamp } from "./lib/feedback.js";
 import { useT } from "./i18n/LanguageContext.jsx";
 import ManualSearchModal from "./components/ManualSearchModal.jsx";
 import CustomerResultCard from "./components/CustomerResultCard.jsx";
@@ -310,6 +311,9 @@ function AdminPanelInner({ onLogout }) {
         [clienteSeleccionado.publicId, ...prev].slice(0, 8),
       );
 
+      // Confirmación audible: el barista no tiene que mirar la pantalla
+      celebrateStamp();
+
       if (result.auto_started_new_card) {
         mostrarExito(t("admin.toastNewCardPlus", { id: idVisible }));
       } else if (
@@ -391,6 +395,7 @@ function AdminPanelInner({ onLogout }) {
       const result = await approveNfcRequest(id);
       const usuario = result?.public_id || peticion.usuario;
 
+      celebrateStamp();
       setPeticionesNfc((prev) => prev.filter((p) => p.id !== id));
       setHistorialHoy((prev) => [usuario, ...prev].slice(0, 8));
       mostrarExito(t("admin.approvedFor", { id: usuario }));
